@@ -1,0 +1,3 @@
+export type LineItem = { id: string; name: string; qty: number; unit?: string; unitPrice: number; total: number; manufacturer?: string | null; sku?: string | null; imageUrl?: string | null; tdsUrl?: string | null; };
+export type PricingSnapshot = { totalCost: { amount: number }; materialCost: { amount: number }; laborCost: { amount: number }; profit: { amount: number }; ppsf: { amount: number }; coverageAreaSqFt: number; laborHours?: number; };
+export type BidSnapshot = { id?: string; project: { name?: string; surfaceHardness?: string; squareFootage?: number; clientName?: string }; systemType?: string; lineItems: LineItem[]; pricing: PricingSnapshot; };

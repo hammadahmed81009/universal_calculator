@@ -1,0 +1,73 @@
+/* Scoped compact layout styles for Universal Calculator */
+
+/* Enable compact density via data attribute on Container */
+[data-compact] .page-hero {
+  padding: 16px !important;
+}
+
+/* Reduce default paddings/gaps on common Mantine shells */
+[data-compact] .mantine-Paper-root {
+  padding: 12px !important;
+}
+[data-compact] .mantine-Stack-root {
+  gap: 8px !important;
+}
+[data-compact] .mantine-Grid-root {
+  margin-top: 8px !important;
+  margin-bottom: 8px !important;
+}
+[data-compact] .mantine-Grid-col {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+/* Calculation results: compact table with sticky header and bounded height */
+[data-compact] .results-table-wrapper {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+[data-compact] .results-table {
+  font-size: 12px;
+}
+[data-compact] .results-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #ffffff;
+}
+[data-compact] .results-table th,
+[data-compact] .results-table td {
+  padding: 6px 8px;
+}
+
+/* Tier card: clamp long descriptions to keep card height small */
+[data-compact] .tier-desc {
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Sticky action bar for main actions */
+[data-compact] .sticky-actions {
+  position: sticky;
+  bottom: 0;
+  padding: 8px 0;
+  background: var(--mantine-color-body, #fff);
+  border-top: 1px solid #e5e7eb;
+  z-index: 3;
+}
+
+/* Disable interactions for add-ons while in Results mode */
+[data-compact] .addons-disabled {
+  pointer-events: none;
+}
+
+/* 40/60 split for System Components (left) and Add-On Options (right) */
+.uc-split { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+@media (min-width: 1280px) {
+  .uc-split { grid-template-columns: 2fr 3fr; }
+}
