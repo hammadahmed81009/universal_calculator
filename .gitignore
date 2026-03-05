@@ -1,3 +1,29 @@
 node_modules
 dist
+
+# Env files
 .env*
+frontend/.env.local
+
+# macOS cruft
+.DS_Store
+
+# Python virtualenvs
+.venv
+venv
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# SQLite database file for backend
+backend/calculator.db
+
+# Editor / IDE settings
+.vscode/
+.idea/
+
+# Logs
+*.log

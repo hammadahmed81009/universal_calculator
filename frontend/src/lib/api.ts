@@ -1,43 +1,49 @@
-/**
- * Static API layer — no network. All data from src/data/dummyData.
- */
+import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios';
+import { parseApiError } from './api/errors';
 
-import {
-  getDummyProductsByManufacturerAndCategories,
-  getDummySavedBid,
-} from '../data/dummyData';
+export type Params = Record<string, string | number | boolean | undefined | null>;
 
-type Params = Record<string, string | number | boolean | undefined>;
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '') || 'http://localhost:8000';
 
-export async function apiGet<T = unknown>(url: string, config?: { params?: Params }): Promise<T> {
-  const path = url.replace(/\?.*$/, '');
-  const params = config?.params ?? {};
+const apiClient: AxiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 15000,
+  withCredentials: false,
+});
 
-  // Products by manufacturer and categories
-  if (path === '/api/user-products/my-products') {
-    const manufacturerId = params.manufacturer_id as number | undefined;
-    const productCategories = (params.product_categories as string) || '';
-    const categoryList = productCategories ? productCategories.split(',').map((s) => s.trim()) : [];
-    if (!manufacturerId) return [] as unknown as T;
-    const list = getDummyProductsByManufacturerAndCategories(manufacturerId, categoryList);
-    return list as unknown as T;
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Normalize errors for consistent handling in React Query and UI.
+    throw parseApiError(error);
   }
+);
 
-  // Saved bid by id (always null — no persisted bids)
-  const savedBidMatch = path.match(/^\/api\/saved-bids\/(.+)$/);
-  if (savedBidMatch) {
-    const bid = getDummySavedBid(savedBidMatch[1]);
-    return bid as unknown as T;
-  }
-
-  return [] as unknown as T;
+export async function apiGet<T = unknown>(
+  url: string,
+  config?: AxiosRequestConfig & { params?: Params }
+): Promise<T> {
+  const res = await apiClient.get<T>(url, config);
+  return res.data;
 }
 
-export async function apiPost<T = unknown>(_url: string, _data?: unknown): Promise<T> {
-  // No-op save; return a fake id so UI can continue
-  return { id: 'dummy-saved-bid-1' } as unknown as T;
+export async function apiPost<T = unknown>(
+  url: string,
+  data?: unknown,
+  config?: AxiosRequestConfig
+): Promise<T> {
+  const res = await apiClient.post<T>(url, data, config);
+  return res.data;
 }
 
-export async function apiPut<T = unknown>(_url: string, _data?: unknown): Promise<T> {
-  return undefined as unknown as T;
+export async function apiPut<T = unknown>(
+  url: string,
+  data?: unknown,
+  config?: AxiosRequestConfig
+): Promise<T> {
+  const res = await apiClient.put<T>(url, data, config);
+  return res.data;
 }
+
+export { apiClient };

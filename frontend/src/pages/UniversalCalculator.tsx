@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { calculateCountertopMaterial, isCountertopCategory } from '../utils/countertopCalculations';
 import {
   Container,
   Title,
@@ -16,18 +15,14 @@ import {
   Radio,
   Accordion,
   Badge,
-  Table,
   TextInput,
   Switch,
   SimpleGrid,
   Modal,
-  Image,
-  Textarea
 } from '@mantine/core';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import {
   IconCalculator,
-  IconInfoCircle,
   IconClockHour3,
   IconRoad,
   IconRulerMeasure,
@@ -39,6 +34,10 @@ import { notifications } from '@mantine/notifications';
 import { apiGet, apiPost, apiPut } from '../lib/api';
 import AppLayout from '../components/AppLayout';
 import PageHeader from '../components/PageHeader';
+import { PostCalculationDetails } from './universal-calculator/PostCalculationDetails';
+import { CalculationResultsSection } from './universal-calculator/CalculationResultsSection';
+import { ManufacturerStepCol } from './universal-calculator/steps/ManufacturerStepCol';
+import { AddOnOptionsSection } from './universal-calculator/AddOnOptionsSection';
 import './UniversalCalculator.compact.css';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { getCurrentUserData, saveCurrentUserData } from '../utils/userScopedStorage';
@@ -47,14 +46,11 @@ import { BidSnapshot as DocBidSnapshot, LineItem as DocLineItem } from '../utils
 import { useLocation } from 'wouter';
 import { useCalculatorDraft, calculatorDraftActions } from '../store/calculatorDraft';
 import { sessionActions } from '../store/sessionContext';
-import { buildSavedBidPayload, snapshotToItems, buildQuickQuoteSavedBidPayload } from '../utils/mapper';
+import { buildSavedBidPayload, snapshotToItems } from '../utils/mapper';
 import { toUIPricingMethod, toDraftPricingMethod, toBackendPricingMethod } from '../constants/pricingMethods';
-import clientService from '../services/clientService';
-import SelectContactModal from '../components/SelectContactModal';
-import { AddContactModal } from '../components/AddContactModal';
 import { flooringLaborAddOns as laborAddOns, countertopLaborAddOns } from '../lib/laborCatalog';
 import type { LaborAddOn } from '../lib/laborCatalog';
-import NewEstimateModal, { type EstimateRecord, type EstimateService } from '../components/NewEstimateModal';
+import NewEstimateModal, { type EstimateService } from '../components/NewEstimateModal';
 import { useMyManufacturers } from '../hooks/useManufacturers';
 import { getImageUrl } from '../utils/imageUrl';
 import { getPreselectedClient, clearPreselectedClient } from '../utils/clientPreselection';
@@ -173,8 +169,6 @@ export default function UniversalCalculator() {
   const [editingBidId, setEditingBidId] = useState<string | null>(null);
   const [isLoadingSavedBid, setIsLoadingSavedBid] = useState<boolean>(false);
   const [autoTriggerCalc, setAutoTriggerCalc] = useState<boolean>(false);
-  const [pickContactOpen, setPickContactOpen] = useState(false);
-  const [createClientModalOpen, setCreateClientModalOpen] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
   // Load saved bid when editBid parameter is present (moved after products/manufacturers declarations)
@@ -288,84 +282,6 @@ export default function UniversalCalculator() {
   const [grindSealBaseSpreadRate, setGrindSealBaseSpreadRate] = useState<number>(125); // 125 sq ft per gal
   const [grindSealIntermediateCoatSpreadRate, setGrindSealIntermediateCoatSpreadRate] = useState<number>(150); // 150 sq ft per gal
 
-  // Polishing Systems - Clean & Seal
-  const [polishCleaner, setPolishCleaner] = useState<string>('');
-  const [polishCleanerAdj, setPolishCleanerAdj] = useState<number>(1);
-  const [polishCrackFiller, setPolishCrackFiller] = useState<string>('');
-  const [polishCrackFillerQty, setPolishCrackFillerQty] = useState<number>(0); // LF or unit count
-  const [polishSealerGuard, setPolishSealerGuard] = useState<string>('');
-  const [polishSealerAdj, setPolishSealerAdj] = useState<number>(1);
-  const [polishSealerCoats, setPolishSealerCoats] = useState<number>(1);
-  const [polishBurnishPad, setPolishBurnishPad] = useState<string>('');
-  const [polishBurnishCount, setPolishBurnishCount] = useState<number>(0);
-
-  // Polishing Systems - Grind & Seal (polishing)
-  const [pgsMetalSelected, setPgsMetalSelected] = useState<Record<string, boolean>>({ '30/40': true, '60/80': true, '120/150': true });
-  const [pgsMetalAdj, setPgsMetalAdj] = useState<number>(1);
-  const [pgsSlurry, setPgsSlurry] = useState<string>('');
-  const [pgsSlurryAdj, setPgsSlurryAdj] = useState<number>(1);
-  const [pgsSlurryCoats, setPgsSlurryCoats] = useState<number>(1);
-  const [pgsSealer, setPgsSealer] = useState<string>('');
-  const [pgsSealerAdj, setPgsSealerAdj] = useState<number>(1);
-  const [pgsSealerCoats, setPgsSealerCoats] = useState<number>(1);
-  const [pgsBurnishPad, setPgsBurnishPad] = useState<string>('');
-  const [pgsBurnishCount, setPgsBurnishCount] = useState<number>(0);
-
-  // Polishing Systems - Medium Polish
-  const [pmNeedMetal, setPmNeedMetal] = useState<boolean>(false);
-  const [pmMetalSelected, setPmMetalSelected] = useState<Record<string, boolean>>({ '30/40': true, '70/80': true, '120': true });
-  const [pmMetalAdj, setPmMetalAdj] = useState<number>(1);
-  const [pmSlurry, setPmSlurry] = useState<string>('');
-  const [pmSlurryAdj, setPmSlurryAdj] = useState<number>(1);
-  const [pmDensifier, setPmDensifier] = useState<string>('');
-  const [pmDensifierAdj, setPmDensifierAdj] = useState<number>(1);
-  const [pmDensifierPasses, setPmDensifierPasses] = useState<number>(1);
-  const [pmResinSelected, setPmResinSelected] = useState<Record<string, boolean>>({ '50': true, '100': true, '200': true, '400': true });
-  const [pmResinAdj, setPmResinAdj] = useState<number>(1);
-  const [pmGuard, setPmGuard] = useState<string>('');
-  const [pmGuardAdj, setPmGuardAdj] = useState<number>(1);
-  const [pmGuardCoats, setPmGuardCoats] = useState<number>(1);
-  const [pmBurnishPad, setPmBurnishPad] = useState<string>('');
-  const [pmBurnishCount, setPmBurnishCount] = useState<number>(1);
-
-  // Polishing Systems - True Polish
-  const [ptMetalSelected, setPtMetalSelected] = useState<Record<string, boolean>>({ '30/40': true, '70/80': true, '120': true });
-  const [ptMetalAdj, setPtMetalAdj] = useState<number>(1);
-  const [ptSlurry, setPtSlurry] = useState<string>('');
-  const [ptSlurryAdj, setPtSlurryAdj] = useState<number>(1);
-  const [ptDensifier1, setPtDensifier1] = useState<string>('');
-  const [ptDensifier1Adj, setPtDensifier1Adj] = useState<number>(1);
-  const [ptResinSelected, setPtResinSelected] = useState<Record<string, boolean>>({ '50': true, '100': true, '200': true, '400': true, '800': true });
-  const [ptResinAdj, setPtResinAdj] = useState<number>(1);
-  const [ptDye, setPtDye] = useState<string>('');
-  const [ptDyeAdj, setPtDyeAdj] = useState<number>(1);
-  const [ptDensifier2, setPtDensifier2] = useState<string>('');
-  const [ptDensifier2Adj, setPtDensifier2Adj] = useState<number>(1);
-  const [ptGuard, setPtGuard] = useState<string>('');
-  const [ptGuardAdj, setPtGuardAdj] = useState<number>(1);
-  const [ptGuardCoats, setPtGuardCoats] = useState<number>(1);
-  const [ptBurnishPad, setPtBurnishPad] = useState<string>('');
-  const [ptBurnishCount, setPtBurnishCount] = useState<number>(1);
-
-  // Polishing Systems - High End Polish
-  const [phMetalSelected, setPhMetalSelected] = useState<Record<string, boolean>>({ '30/40': true, '70/80': true, '120': true });
-  const [phMetalAdj, setPhMetalAdj] = useState<number>(1);
-  const [phSlurry, setPhSlurry] = useState<string>('');
-  const [phSlurryAdj, setPhSlurryAdj] = useState<number>(1);
-  const [phDensifier1, setPhDensifier1] = useState<string>('');
-  const [phDensifier1Adj, setPhDensifier1Adj] = useState<number>(1);
-  const [phResinSelected, setPhResinSelected] = useState<Record<string, boolean>>({ '50': true, '100': true, '200': true, '400': true, '800': true, '1500': true, '3000': true });
-  const [phResinAdj, setPhResinAdj] = useState<number>(1);
-  const [phDye, setPhDye] = useState<string>('');
-  const [phDyeAdj, setPhDyeAdj] = useState<number>(1);
-  const [phDensifier2, setPhDensifier2] = useState<string>('');
-  const [phDensifier2Adj, setPhDensifier2Adj] = useState<number>(1);
-  const [phPremiumGuard, setPhPremiumGuard] = useState<string>('');
-  const [phPremiumGuardAdj, setPhPremiumGuardAdj] = useState<number>(1);
-  const [phPremiumGuardCoats, setPhPremiumGuardCoats] = useState<number>(2);
-  const [phBurnishPad, setPhBurnishPad] = useState<string>('');
-  const [phBurnishCount, setPhBurnishCount] = useState<number>(2);
-
   // Load manufacturers with numeric IDs from backend
   const { data: apiManufacturers = [] } = useMyManufacturers();
 
@@ -478,7 +394,7 @@ export default function UniversalCalculator() {
       queryKey: ['products', 'category-group', categories, selectedManufacturerIdNum],
       queryFn: async () => {
         console.log(`[API] Fetching products for categories: ${categories.join(', ')} for mfg: ${selectedManufacturerIdNum}`);
-        const response = await apiGet('/api/user-products/my-products', {
+        const response = await apiGet<any>('/api/user-products/my-products', {
           params: {
             product_categories: categories.join(','),
             manufacturer_id: selectedManufacturerIdNum,
@@ -1577,7 +1493,7 @@ export default function UniversalCalculator() {
 
   // Helper: build full image URL similar to Products page
   const getProductImageUrl = (relativePath: string | undefined): string => {
-    if (!relativePath || relativePath.trim() === '') return 'https://via.placeholder.com/100x100/CCCCCC/666666?text=No+Image';
+    if (!relativePath || relativePath.trim() === '') return '';
     if (relativePath.startsWith('http')) return relativePath;
     const API_BASE_URL = (import.meta.env.VITE_API_BASE as string) || 'https://floor-nexus-backend-latest.onrender.com';
     return `${API_BASE_URL}${relativePath}`;
@@ -1758,6 +1674,41 @@ export default function UniversalCalculator() {
   // Layout flags
   const showComponentsInStep2 = false; // moved below the steps into its own section
   const showCalculateInStep4 = false; // calculate button moved under System Components
+
+  const resetSystemComponentSelections = useCallback(() => {
+    setSelectedBasePigment('');
+    setSelectedBaseCoat('');
+    setSelectedFlakeColor('');
+    setSelectedTopCoat('');
+    setSelectedMVBBasePigment('');
+    setSelectedMVBBaseCoat('');
+    setSelectedMVBFlakeColor('');
+    setSelectedMVBTopCoat('');
+    setSelectedSolidBasePigment('');
+    setSelectedSolidGroutCoat('');
+    setSelectedSolidBaseCoat('');
+    setSelectedSolidExtraBaseCoat('');
+    setSelectedSolidTopCoat('');
+    setSelectedMetallicBasePigment('');
+    setSelectedMetallicGroutCoat('');
+    setSelectedMetallicBaseCoat('');
+    setSelectedMetallicMoneyCoat('');
+    setSelectedMetallicPigments([]);
+    setSelectedMetallicTopCoat('');
+    setSelectedGrindSealPrimer('');
+    setSelectedGrindSealGroutCoat('');
+    setSelectedGrindSealBaseCoat('');
+    setSelectedGrindSealIntermediateCoat('');
+    setSelectedGrindSealTopCoat('');
+    setSelectedGrindSealAdditionalTopCoat('');
+    // Reset countertop system components
+    setSelectedCountertopPrimer('');
+    setSelectedCountertopBasePigment('');
+    setSelectedCountertopMetallicArtCoat('');
+    setSelectedCountertopMetallicPigments([]);
+    setSelectedCountertopFloodCoat('');
+    setSelectedCountertopTopCoat('');
+  }, []);
 
   // Smooth scroll helper for guided prompts
   const scrollToStep = (id: string) => {
@@ -2438,11 +2389,11 @@ export default function UniversalCalculator() {
       systemType: selectedSystem || undefined,
       lineItems: materialItems,
       pricing: {
-        totalCost: { amount: revenue, currency: 'USD' },
-        materialCost: { amount: materialCost, currency: 'USD' },
-        laborCost: { amount: laborCost, currency: 'USD' },
-        profit: { amount: revenue - (materialCost + laborCost), currency: 'USD' },
-        ppsf: { amount: Number(pricingOutput.pricePerSqFt) || 0, currency: 'USD' },
+        totalCost: { amount: revenue },
+        materialCost: { amount: materialCost },
+        laborCost: { amount: laborCost },
+        profit: { amount: revenue - (materialCost + laborCost) },
+        ppsf: { amount: Number(pricingOutput.pricePerSqFt) || 0 },
         coverageAreaSqFt: Number(effectiveSqft) || 0,
         laborHours: Number(totalLaborHours) || 0,
       },
@@ -2943,9 +2894,9 @@ export default function UniversalCalculator() {
         items,
       };
 
-      const res = await apiPost<{ id: string }>(`/api/saved-bids/`, payload);
+      const res = await apiPost<{ id: number }>(`/api/saved-bids/`, payload);
       // Note: Local bid storage has been deprecated
-      sessionActions.patch({ returnTo: '/universal-calculator', lastSavedBidId: res.id });
+      sessionActions.patch({ returnTo: '/universal-calculator', lastSavedBidId: String(res.id) });
       return res.id;
     } catch (e) {
       notifications.show({ title: 'Save Failed', message: 'Unable to save bid. Please try again.', color: 'red' });
@@ -3281,116 +3232,14 @@ export default function UniversalCalculator() {
         {/* 4-Column Step Layout */}
         <Grid gutter="lg" mb="xl">
           {/* Step 1: Select Manufacturer */}
-          <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-            <Paper p="lg" withBorder style={{ height: '100%', borderColor: '#9333ea', borderWidth: '2px' }}>
-              <Stack gap="md" h="100%">
-                <Title order={4} c="purple">Step 1: Select Manufacturer</Title>
-                <Text c="dimmed" size="sm">Choose your preferred manufacturer</Text>
-
-                <Select
-                  placeholder="Select a manufacturer..."
-                  value={selectedManufacturer}
-                  onChange={(value) => {
-                    if (value && value !== selectedManufacturer) {
-                      setSelectedManufacturer(value);
-                      // Don't reset system group or specific system when manufacturer changes
-                      // Only reset system-specific component selections
-                      setSelectedBasePigment('');
-                      setSelectedBaseCoat('');
-                      setSelectedFlakeColor('');
-                      setSelectedTopCoat('');
-                      setSelectedMVBBasePigment('');
-                      setSelectedMVBBaseCoat('');
-                      setSelectedMVBFlakeColor('');
-                      setSelectedMVBTopCoat('');
-                      setSelectedSolidBasePigment('');
-                      setSelectedSolidGroutCoat('');
-                      setSelectedSolidBaseCoat('');
-                      setSelectedSolidExtraBaseCoat('');
-                      setSelectedSolidTopCoat('');
-                      setSelectedMetallicBasePigment('');
-                      setSelectedMetallicGroutCoat('');
-                      setSelectedMetallicBaseCoat('');
-                      setSelectedMetallicMoneyCoat('');
-                      setSelectedMetallicPigments([]);
-                      setSelectedMetallicTopCoat('');
-                      setSelectedGrindSealPrimer('');
-                      setSelectedGrindSealGroutCoat('');
-                      setSelectedGrindSealBaseCoat('');
-                      setSelectedGrindSealIntermediateCoat('');
-                      setSelectedGrindSealTopCoat('');
-                      setSelectedGrindSealAdditionalTopCoat('');
-                      // Reset countertop system components
-                      setSelectedCountertopPrimer('');
-                      setSelectedCountertopBasePigment('');
-                      setSelectedCountertopMetallicArtCoat('');
-                      setSelectedCountertopMetallicPigments([]);
-                      setSelectedCountertopFloodCoat('');
-                      setSelectedCountertopTopCoat('');
-                    }
-                  }}
-                  data={availableManufacturers.map(mfg => ({ value: mfg.id, label: mfg.name }))}
-                  size="md"
-                  searchable
-                  allowDeselect={false}
-                  comboboxProps={{ withinPortal: true, transitionProps: { transition: 'fade', duration: 100 } }}
-                  renderOption={({ option }) => {
-                    const manu = availableManufacturers.find((m) => m.id === option.value);
-                    return (
-                      <Group gap="sm">
-                        <Image src={manu?.logo} alt="" h={20} w={20} fit="contain" radius="sm" />
-                        <Text>{option.label}</Text>
-                      </Group>
-                    );
-                  }}
-                />
-
-                <Box mt="auto">
-                  {selectedManufacturer && (
-                    <Box mt="md" p="md" bg="gray.0" style={{ borderRadius: '8px' }}>
-                      <Group align="center" gap="xs">
-                        <Box
-                          w={60}
-                          h={40}
-                          bg="white"
-                          style={{
-                            borderRadius: '4px',
-                            border: '1px solid #e0e0e0',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            overflow: 'hidden'
-                          }}
-                        >
-                          {(() => {
-                            const manufacturer = availableManufacturers.find(m => m.id === selectedManufacturer);
-                            const apiManufacturer = apiManufacturers.find(m => m.id.toString() === selectedManufacturer);
-                            const logoUrl = apiManufacturer?.logo_url
-                              ? getImageUrl(apiManufacturer.logo_url)
-                              : manufacturer?.logo;
-                            return (
-                              <img
-                                src={logoUrl}
-                                alt={manufacturer?.name || apiManufacturer?.name}
-                                style={{
-                                  maxWidth: '100%',
-                                  maxHeight: '100%',
-                                  objectFit: 'contain'
-                                }}
-                              />
-                            );
-                          })()}
-                        </Box>
-                        <Text fw={500} size="sm">
-                          {availableManufacturers.find(m => m.id === selectedManufacturer)?.name || 'Unknown'}
-                        </Text>
-                      </Group>
-                    </Box>
-                  )}
-                </Box>
-              </Stack>
-            </Paper>
-          </Grid.Col>
+          <ManufacturerStepCol
+            selectedManufacturer={selectedManufacturer}
+            setSelectedManufacturer={setSelectedManufacturer}
+            availableManufacturers={availableManufacturers}
+            apiManufacturers={apiManufacturers}
+            getImageUrl={getImageUrl}
+            resetSystemComponentSelections={resetSystemComponentSelections}
+          />
 
           {/* Step 2: Select System */}
           <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
@@ -3411,39 +3260,7 @@ export default function UniversalCalculator() {
                         if (value && value !== selectedSystemGroup) {
                           setSelectedSystemGroup(value);
                           setSelectedSystem(''); // Reset system when group changes
-                          // Reset all system-specific components
-                        setSelectedBasePigment('');
-                        setSelectedBaseCoat('');
-                        setSelectedFlakeColor('');
-                        setSelectedTopCoat('');
-                        setSelectedMVBBasePigment('');
-                        setSelectedMVBBaseCoat('');
-                        setSelectedMVBFlakeColor('');
-                        setSelectedMVBTopCoat('');
-                        setSelectedSolidBasePigment('');
-                        setSelectedSolidGroutCoat('');
-                        setSelectedSolidBaseCoat('');
-                        setSelectedSolidExtraBaseCoat('');
-                        setSelectedSolidTopCoat('');
-                        setSelectedMetallicBasePigment('');
-                        setSelectedMetallicGroutCoat('');
-                        setSelectedMetallicBaseCoat('');
-                        setSelectedMetallicMoneyCoat('');
-                        setSelectedMetallicPigments([]);
-                        setSelectedMetallicTopCoat('');
-                        setSelectedGrindSealPrimer('');
-                        setSelectedGrindSealGroutCoat('');
-                        setSelectedGrindSealBaseCoat('');
-                        setSelectedGrindSealIntermediateCoat('');
-                        setSelectedGrindSealTopCoat('');
-                        setSelectedGrindSealAdditionalTopCoat('');
-                        // Reset countertop system components
-                        setSelectedCountertopPrimer('');
-                        setSelectedCountertopBasePigment('');
-                        setSelectedCountertopMetallicArtCoat('');
-                        setSelectedCountertopMetallicPigments([]);
-                        setSelectedCountertopFloodCoat('');
-                        setSelectedCountertopTopCoat('');
+                          resetSystemComponentSelections();
                         }
                       }}
                       data={[
@@ -3468,19 +3285,7 @@ export default function UniversalCalculator() {
                         if (value && value !== selectedSystem) {
                           setSelectedSystem(value);
                           // Reset system-specific components when system changes
-                          setSelectedBasePigment('');
-                          setSelectedBaseCoat('');
-                          setSelectedFlakeColor('');
-                          setSelectedTopCoat('');
-                          setSelectedMVBBasePigment('');
-                          setSelectedMVBBaseCoat('');
-                          setSelectedMVBFlakeColor('');
-                          setSelectedMVBTopCoat('');
-                          setSelectedSolidBasePigment('');
-                          setSelectedSolidGroutCoat('');
-                          setSelectedSolidBaseCoat('');
-                          setSelectedSolidExtraBaseCoat('');
-                          setSelectedSolidTopCoat('');
+                          resetSystemComponentSelections();
                         }
                       }}
                       data={availableSystems}
@@ -3509,1206 +3314,17 @@ export default function UniversalCalculator() {
                     </Box>
                   )}
 
-                  {/* System Components - No MVB Flake System (hidden in Step 2) */}
-                  {showComponentsInStep2 && selectedSystem && (selectedSystem === 'no-mvb-flake-system' || products.find(p => p.id.toString() === selectedSystem)?.name === 'No MVB Flake System') && (
-                    <Box mt="md" p="md" bg="gray.0" style={{ borderRadius: '8px' }}>
-                      <Text fw={500} size="sm" mb="md" c="green">System Components</Text>
-                      <Text size="xs" c="dimmed" mb="sm">Select products for each component in your No MVB Flake System</Text>
+                  {/* System Components are configured in the dedicated System Components section below. */}
 
-                      <Stack gap="sm">
-                        {/* Base Pigment (Optional) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs">Base Pigment (Optional)</Text>
-                          <Select
-                            placeholder="Select base pigment product..."
-                            value={selectedBasePigment}
-                            onChange={(value) => handleSelectChange(selectedBasePigment, value, setSelectedBasePigment)}
-                            data={basePigmentOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedBasePigment && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Pigment Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={noMVBBasePigmentSpreadRate}
-                                onChange={(value) => setNoMVBBasePigmentSpreadRate(Number(value) || 1)}
-                                min={0.1}
-                                max={10}
-                                step={0.1}
-                                decimalScale={1}
-                                description="Pigments per 3-gal Base Coat kit"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 1 pigment per 3-gal kit (US Resin: 2 per kit)</Text>
-                            </Box>
-                          )}
-                        </div>
+                  {/* (Step 2 system component pickers removed; see System Components section.) */}
 
-                        {/* Base Coat (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Base Coat *</Text>
-                          <Select
-                            placeholder="Select base coat..."
-                            value={selectedBaseCoat}
-                            onChange={(value) => handleSelectChange(selectedBaseCoat, value, setSelectedBaseCoat)}
-                            data={baseCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={noMVBBaseCoatSpreadRate}
-                                onChange={(value) => setNoMVBBaseCoatSpreadRate(Number(value) || 100)}
-                                min={50}
-                                max={200}
-                                step={5}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 100 sq ft/gal (3-gal kit = 300 sq ft)</Text>
-                            </Box>
-                          )}
-                        </div>
+                  {/* (Step 2 system component pickers removed; see System Components section.) */}
 
-                        {/* Flake Color (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Flake Color *</Text>
-                          <Select
-                            placeholder="Select flake product..."
-                            value={selectedFlakeColor}
-                            onChange={(value) => handleSelectChange(selectedFlakeColor, value, setSelectedFlakeColor)}
-                            data={flakeColorOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedFlakeColor && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Flake Color Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={noMVBFlakeColorSpreadRate}
-                                onChange={(value) => setNoMVBFlakeColorSpreadRate(Number(value) || 350)}
-                                min={200}
-                                max={500}
-                                step={25}
-                                description="Square feet per box"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 350 sq ft per box</Text>
-                            </Box>
-                          )}
-                        </div>
+                  {/* (Step 2 system component pickers removed; see System Components section.) */}
 
-                        {/* Top Coat (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Top Coat *</Text>
-                          <Select
-                            placeholder="Select top coat..."
-                            value={selectedTopCoat}
-                            onChange={(value) => handleSelectChange(selectedTopCoat, value, setSelectedTopCoat)}
-                            data={topCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={noMVBTopCoatSpreadRate}
-                                onChange={(value) => setNoMVBTopCoatSpreadRate(Number(value) || 200)}
-                                min={100}
-                                max={300}
-                                step={25}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 200 sq ft per gallon (Polyaspartic)</Text>
-                            </Box>
-                          )}
-                        </div>
-                      </Stack>
-                    </Box>
-                  )}
+                  {/* (Step 2 system component pickers removed; see System Components section.) */}
 
-                  {/* System Components - MVB Flake System (hidden in Step 2) */}
-                  {showComponentsInStep2 && selectedSystem && selectedSystem === 'mvb-flake-system' && (
-                    <Box mt="md" p="md" bg="gray.0" style={{ borderRadius: '8px' }}>
-                      <Text fw={500} size="sm" mb="md" c="green">System Components</Text>
-                      <Text size="xs" c="dimmed" mb="sm">Select products for each component in your MVB Flake System</Text>
-
-                      <Stack gap="sm">
-                        {/* Base Pigment (Optional) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs">Base Pigment (Optional)</Text>
-                          <Select
-                            placeholder="Select base pigment product..."
-                            value={selectedMVBBasePigment}
-                            onChange={(value) => handleSelectChange(selectedMVBBasePigment, value, setSelectedMVBBasePigment)}
-                            data={mvbBasePigmentOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedMVBBasePigment && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Pigment Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={mvbBasePigmentSpreadRate}
-                                onChange={(value) => setMVBBasePigmentSpreadRate(Number(value) || 1)}
-                                min={0.1}
-                                max={10}
-                                step={0.1}
-                                decimalScale={1}
-                                description="Pigments per 3-gal Base Coat kit"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 1 pigment per 3-gal kit (US Resin: 2 per kit)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Base Coat (Required) - MVB Source */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Base Coat * (MVB)</Text>
-                          <Select
-                            placeholder="Select MVB base coat..."
-                            value={selectedMVBBaseCoat}
-                            onChange={(value) => handleSelectChange(selectedMVBBaseCoat, value, setSelectedMVBBaseCoat)}
-                            data={mvbBaseCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedMVBBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={mvbBaseCoatSpreadRate}
-                                onChange={(value) => setMVBBaseCoatSpreadRate(Number(value) || 100)}
-                                min={50}
-                                max={200}
-                                step={5}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 100 sq ft/gal (3-gal kit = 300 sq ft)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Flake Color (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Flake Color *</Text>
-                          <Select
-                            placeholder="Select flake product..."
-                            value={selectedMVBFlakeColor}
-                            onChange={(value) => handleSelectChange(selectedMVBFlakeColor, value, setSelectedMVBFlakeColor)}
-                            data={mvbFlakeColorOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedMVBFlakeColor && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Flake Color Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={mvbFlakeColorSpreadRate}
-                                onChange={(value) => setMVBFlakeColorSpreadRate(Number(value) || 350)}
-                                min={200}
-                                max={500}
-                                step={25}
-                                description="Square feet per box"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 350 sq ft per box</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Top Coat (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Top Coat *</Text>
-                          <Select
-                            placeholder="Select top coat..."
-                            value={selectedMVBTopCoat}
-                            onChange={(value) => handleSelectChange(selectedMVBTopCoat, value, setSelectedMVBTopCoat)}
-                            data={mvbTopCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedMVBTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={mvbTopCoatSpreadRate}
-                                onChange={(value) => setMVBTopCoatSpreadRate(Number(value) || 200)}
-                                min={100}
-                                max={300}
-                                step={25}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 200 sq ft per gallon (Polyaspartic)</Text>
-                            </Box>
-                          )}
-                        </div>
-                      </Stack>
-                    </Box>
-                  )}
-
-                  {/* System Components - Solid Color System (hidden in Step 2) */}
-                  {showComponentsInStep2 && selectedSystem && selectedSystem === 'solid-color-system' && (
-                    <Box mt="md" p="md" bg="gray.0" style={{ borderRadius: '8px' }}>
-                      <Text fw={500} size="sm" mb="md" c="green">System Components</Text>
-                      <Text size="xs" c="dimmed" mb="sm">Select products for each component in your Solid Color System</Text>
-
-                      <Stack gap="sm">
-                        {/* Base Pigment (Optional) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs">Base Pigment (Optional)</Text>
-                          <Select
-                            placeholder="Select base pigment product..."
-                            value={selectedSolidBasePigment}
-                            onChange={(value) => handleSelectChange(selectedSolidBasePigment, value, setSelectedSolidBasePigment)}
-                            data={solidBasePigmentOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedSolidBasePigment && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Pigment Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={solidBasePigmentSpreadRate}
-                                onChange={(value) => setSolidBasePigmentSpreadRate(Number(value) || 1)}
-                                min={0.1}
-                                max={10}
-                                step={0.1}
-                                decimalScale={1}
-                                description="Pigments per 3-gal Base Coat kit"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 1 pigment per 3-gal kit (US Resin: 2 per kit)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Grout Coat (Suggestive) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="orange">Grout Coat (Suggestive)</Text>
-                          <Select
-                            placeholder="Select grout coat..."
-                            value={selectedSolidGroutCoat}
-                            onChange={(value) => handleSelectChange(selectedSolidGroutCoat, value, setSelectedSolidGroutCoat)}
-                            data={solidGroutCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedSolidGroutCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Grout Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={solidGroutCoatSpreadRate}
-                                onChange={(value) => setSolidGroutCoatSpreadRate(Number(value) || 600)}
-                                min={400}
-                                max={800}
-                                step={25}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 600 sq ft/gal (3-gal kit = 1,800 sq ft)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Base Coat (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Base Coat *</Text>
-                          <Select
-                            placeholder="Select base coat..."
-                            value={selectedSolidBaseCoat}
-                            onChange={(value) => handleSelectChange(selectedSolidBaseCoat, value, setSelectedSolidBaseCoat)}
-                            data={solidBaseCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedSolidBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={solidBaseCoatSpreadRate}
-                                onChange={(value) => setSolidBaseCoatSpreadRate(Number(value) || 75)}
-                                min={50}
-                                max={150}
-                                step={5}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 75 sq ft/gal (3-gal kit = 225 sq ft)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Extra Base Coat (Clear Coat - Optional) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs">Extra Base Coat (Clear Coat - Optional)</Text>
-                          <Select
-                            placeholder="Select extra base coat..."
-                            value={selectedSolidExtraBaseCoat}
-                            onChange={(value) => handleSelectChange(selectedSolidExtraBaseCoat, value, setSelectedSolidExtraBaseCoat)}
-                            data={solidExtraBaseCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedSolidExtraBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Extra Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={solidExtraBaseCoatSpreadRate}
-                                onChange={(value) => setSolidExtraBaseCoatSpreadRate(Number(value) || 80)}
-                                min={50}
-                                max={150}
-                                step={5}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 80 sq ft per gallon</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Top Coat (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Top Coat *</Text>
-                          <Select
-                            placeholder="Select top coat..."
-                            value={selectedSolidTopCoat}
-                            onChange={(value) => handleSelectChange(selectedSolidTopCoat, value, setSelectedSolidTopCoat)}
-                            data={solidTopCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedSolidTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={solidTopCoatSpreadRate}
-                                onChange={(value) => setSolidTopCoatSpreadRate(Number(value) || 200)}
-                                min={100}
-                                max={300}
-                                step={25}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Rate: Prefilled from selected topcoat; adjust if needed</Text>
-                            </Box>
-                          )}
-                        </div>
-                      </Stack>
-                    </Box>
-                  )}
-
-                  {/* System Components - Metallic System (hidden in Step 2) */}
-                  {showComponentsInStep2 && selectedSystem && selectedSystem === 'metallic-system' && (
-                    <Box mt="md" p="md" bg="gray.0" style={{ borderRadius: '8px' }}>
-                      <Text fw={500} size="sm" mb="md" c="green">System Components</Text>
-                      <Text size="xs" c="dimmed" mb="sm">Select products for each component in your Metallic System</Text>
-
-                      <Stack gap="sm">
-                        {/* Base Pigment (Optional) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs">Base Pigment (Optional)</Text>
-                          <Select
-                            placeholder="Select base pigment product..."
-                            value={selectedMetallicBasePigment}
-                            onChange={(value) => handleSelectChange(selectedMetallicBasePigment, value, setSelectedMetallicBasePigment)}
-                            data={metallicBasePigmentOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedMetallicBasePigment && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Pigment Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={metallicBasePigmentSpreadRate}
-                                onChange={(value) => setMetallicBasePigmentSpreadRate(Number(value) || 1)}
-                                min={0.1}
-                                max={10}
-                                step={0.1}
-                                decimalScale={1}
-                                description="Pigments per 3-gal Base Coat kit"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 1 pigment per 3-gal kit (US Resin: 2 per kit)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Grout Coat (Suggestive) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="orange">Grout Coat (Suggestive)</Text>
-                          <Select
-                            placeholder="Select grout coat..."
-                            value={selectedMetallicGroutCoat}
-                            onChange={(value) => handleSelectChange(selectedMetallicGroutCoat, value, setSelectedMetallicGroutCoat)}
-                            data={metallicGroutCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedMetallicGroutCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Grout Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={metallicGroutCoatSpreadRate}
-                                onChange={(value) => setMetallicGroutCoatSpreadRate(Number(value) || 600)}
-                                min={400}
-                                max={800}
-                                step={25}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 600 sq ft/gal (3-gal kit = 1,800 sq ft)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Base Coat (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Base Coat *</Text>
-                          <Select
-                            placeholder="Select base coat..."
-                            value={selectedMetallicBaseCoat}
-                            onChange={(value) => handleSelectChange(selectedMetallicBaseCoat, value, setSelectedMetallicBaseCoat)}
-                            data={metallicBaseCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedMetallicBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={metallicBaseCoatSpreadRate}
-                                onChange={(value) => setMetallicBaseCoatSpreadRate(Number(value) || 80)}
-                                min={50}
-                                max={150}
-                                step={5}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 80 sq ft/gal (3-gal kit = 240 sq ft)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Metallic Money Coat (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Metallic Money Coat *</Text>
-                          <Select
-                            placeholder="Select metallic money coat..."
-                            value={selectedMetallicMoneyCoat}
-                            onChange={(value) => handleSelectChange(selectedMetallicMoneyCoat, value, setSelectedMetallicMoneyCoat)}
-                            data={metallicMoneyCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedMetallicMoneyCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Metallic Money Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={metallicMoneyCoatSpreadRate}
-                                onChange={(value) => setMetallicMoneyCoatSpreadRate(Number(value) || 30)}
-                                min={20}
-                                max={50}
-                                step={5}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 30 sq ft per gallon</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Metallic Pigment (Required - Multi-Select with Quantities) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Metallic Pigment * (Multiple selections)</Text>
-                          {/* Inline Mix Assistant helper right under the label */}
-                          <Group gap={6} align="center" mb="xs">
-                            <Text size="xs" c="dimmed">
-                              (<Text span inherit fw={600}>Mix Assistant</Text>: Recommend pigment counts by Primary/Accent/Depth roles based on your area. Choose pigments first, then Apply.)
-                            </Text>
-                            <Button size="xs" variant="light" onClick={applyMetallicMixAssistant}>Apply</Button>
-                          </Group>
-                          <Text size="xs" c="dimmed" mb="xs">Select colors and set quantities for your metallic effect</Text>
-
-                          {/* Pigment Selection Dropdown */}
-                          <Group gap="xs" mb="xs">
-                            <Select
-                              placeholder="Choose a metallic pigment to add..."
-                              value=""
-                              onChange={(value) => {
-                                if (value) {
-                                  const option = metallicPigmentOptions.find(opt => opt.value === value);
-                                  if (option) {
-                                    // Check if this pigment is already selected
-                                    const alreadySelected = selectedMetallicPigments.some(p => p.id === value);
-                                    if (!alreadySelected) {
-                                      setSelectedMetallicPigments([...selectedMetallicPigments, {
-                                        id: value,
-                                        name: option.label,
-                                        quantity: 1
-                                      }]);
-                                    }
-                                  }
-                                }
-                              }}
-                              data={metallicPigmentOptions.filter(option =>
-                                !selectedMetallicPigments.some(selected => selected.id === option.value)
-                              )}
-                              size="xs"
-                              style={{ flex: 1 }}
-                              searchable
-                            />
-                            <Button
-                              size="xs"
-                              variant="light"
-                              disabled={metallicPigmentOptions.length === 0 || selectedMetallicPigments.length >= metallicPigmentOptions.length}
-                            >
-                              Add
-                            </Button>
-                          </Group>
-
-                          {/* Selected Pigments List with thumbnails */}
-                          <Stack gap="xs">
-                            {selectedMetallicPigments.map((pigment, index) => (
-                              <Box key={`${pigment.id}-${index}`} p="xs" bg="white" style={{ borderRadius: '4px', border: '1px solid #e0e0e0' }}>
-                                <Group gap="xs" align="center">
-                                  {/* Thumbnail preview if product has image */}
-                                  {(() => {
-                                    const prod = getProduct(pigment.id); return (
-                                      <ThumbImg src={prod ? getProductImageUrl(prod.image_url) : undefined} size={24} />
-                                    );
-                                  })()}
-                                  {/* Pigment name with color indicator using text */}
-                                  <Text size="xs" fw={500} style={{ flex: 1, minWidth: 0 }} truncate>
-                                    {pigment.name}
-                                  </Text>
-
-                                  {/* Quantity input */}
-                                  <NumberInput
-                                    placeholder="Qty"
-                                    value={pigment.quantity}
-                                    onChange={(value) => {
-                                      setSelectedMetallicPigments(selectedMetallicPigments.map((p, i) =>
-                                        i === index ? { ...p, quantity: Number(value) || 0 } : p
-                                      ));
-                                    }}
-                                    min={0}
-                                    step={1}
-                                    size="xs"
-                                    w={70}
-                                    styles={{
-                                      input: { textAlign: 'center' }
-                                    }}
-                                  />
-
-                                  {/* Remove button */}
-                                  <Button
-                                    size="xs"
-                                    variant="subtle"
-                                    color="red"
-                                    onClick={() => {
-                                      setSelectedMetallicPigments(selectedMetallicPigments.filter((_, i) => i !== index));
-                                    }}
-                                    w={30}
-                                    h={24}
-                                    p={0}
-                                  >
-                                    ×
-                                  </Button>
-                                </Group>
-                              </Box>
-                            ))}
-
-                            {selectedMetallicPigments.length === 0 && (
-                              <Box p="xs" bg="gray.1" style={{ borderRadius: '4px', border: '1px dashed #ccc' }}>
-                                <Text size="xs" c="dimmed" style={{ textAlign: 'center' }}>
-                                  No metallic pigments selected
-                                </Text>
-                              </Box>
-                            )}
-                          </Stack>
-                        </div>
-
-                        {/* Top Coat (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Top Coat *</Text>
-                          <Select
-                            placeholder="Select top coat..."
-                            value={selectedMetallicTopCoat}
-                            onChange={(value) => handleSelectChange(selectedMetallicTopCoat, value, setSelectedMetallicTopCoat)}
-                            data={metallicTopCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedMetallicTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Metallic Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={metallicTopCoatSpreadRate}
-                                onChange={(value) => setMetallicTopCoatSpreadRate(Number(value) || 200)}
-                                min={100}
-                                max={400}
-                                step={5}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested from product when available; editable for job-specific conditions.</Text>
-                            </Box>
-                          )}
-                        </div>
-                      </Stack>
-                    </Box>
-                  )}
-
-                  {/* System Components - Grind & Seal System (hidden in Step 2) */}
-                  {showComponentsInStep2 && selectedSystem && selectedSystem === 'grind-seal-system' && (
-                    <Box mt="md" p="md" bg="gray.0" style={{ borderRadius: '8px' }}>
-                      <Text fw={500} size="sm" mb="md" c="green">System Components</Text>
-                      <Text size="xs" c="dimmed" mb="sm">Select products for each component in your Grind & Seal System</Text>
-
-                      <Stack gap="sm">
-                        {/* Primer (Optional) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs">Primer (Optional)</Text>
-                          <Text size="xs" c="dimmed" mb="xs">Choose none if not selecting product</Text>
-                          <Select
-                            placeholder="Select primer product..."
-                            value={selectedGrindSealPrimer}
-                            onChange={(value) => handleSelectChange(selectedGrindSealPrimer, value, setSelectedGrindSealPrimer)}
-                            data={grindSealPrimerOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedGrindSealPrimer && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Primer Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={200} // Default primer rate
-                                onChange={() => { }} // Read-only for now
-                                min={100}
-                                max={300}
-                                step={25}
-                                description="Square feet per gallon"
-                                disabled
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Rate: Refer to selected primer product specifications</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Grout Coat (Optional) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs">Grout Coat (Optional)</Text>
-                          <Text size="xs" c="dimmed" mb="xs">Products from Epoxy or Metallic Top Coats categories</Text>
-                          <Select
-                            placeholder="Select grout coat..."
-                            value={selectedGrindSealGroutCoat}
-                            onChange={(value) => handleSelectChange(selectedGrindSealGroutCoat, value, setSelectedGrindSealGroutCoat)}
-                            data={grindSealGroutCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedGrindSealGroutCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Grout Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={grindSealGroutSpreadRate}
-                                onChange={(value) => setGrindSealGroutSpreadRate(Number(value) || 600)}
-                                min={400}
-                                max={800}
-                                step={25}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 600 sq ft per gallon</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Base Coat (Optional) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs">Base Coat (Optional)</Text>
-                          <Text size="xs" c="dimmed" mb="xs">Products from Epoxy or Metallic Top Coats categories</Text>
-                          <Select
-                            placeholder="Select base coat..."
-                            value={selectedGrindSealBaseCoat}
-                            onChange={(value) => handleSelectChange(selectedGrindSealBaseCoat, value, setSelectedGrindSealBaseCoat)}
-                            data={grindSealBaseCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedGrindSealBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={grindSealBaseSpreadRate}
-                                onChange={(value) => setGrindSealBaseSpreadRate(Number(value) || 125)}
-                                min={75}
-                                max={200}
-                                step={25}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 125 sq ft per gallon</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Intermediate Coat (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Intermediate Coat *</Text>
-                          <Text size="xs" c="dimmed" mb="xs">Products from Epoxy or Metallic Top Coats categories</Text>
-                          <Select
-                            placeholder="Select intermediate coat..."
-                            value={selectedGrindSealIntermediateCoat}
-                            onChange={(value) => handleSelectChange(selectedGrindSealIntermediateCoat, value, setSelectedGrindSealIntermediateCoat)}
-                            data={grindSealIntermediateCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedGrindSealIntermediateCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Intermediate Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={grindSealIntermediateCoatSpreadRate}
-                                onChange={(value) => setGrindSealIntermediateCoatSpreadRate(Number(value) || 150)}
-                                min={100}
-                                max={250}
-                                step={25}
-                                description="Square feet per gallon"
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 150 sq ft per gallon</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Top Coat (Required) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs" c="red">Top Coat *</Text>
-                          <Text size="xs" c="dimmed" mb="xs">Products from Metallic Top Coats or Polyaspartic Topcoats</Text>
-                          <Select
-                            placeholder="Select top coat..."
-                            value={selectedGrindSealTopCoat}
-                            onChange={(value) => handleSelectChange(selectedGrindSealTopCoat, value, setSelectedGrindSealTopCoat)}
-                            data={grindSealTopCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedGrindSealTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={200} // Default rate - should refer to product
-                                onChange={() => { }} // Read-only for now
-                                min={100}
-                                max={300}
-                                step={25}
-                                description="Square feet per gallon"
-                                disabled
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Rate: Refer to selected topcoat product specifications</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Additional Top Coat (Optional) */}
-                        <div>
-                          <Text size="xs" fw={500} mb="xs">Additional Top Coat (Optional)</Text>
-                          <Text size="xs" c="dimmed" mb="xs">Products from Metallic Top Coats or Polyaspartic Topcoats</Text>
-                          <Select
-                            placeholder="Select additional top coat..."
-                            value={selectedGrindSealAdditionalTopCoat}
-                            onChange={(value) => handleSelectChange(selectedGrindSealAdditionalTopCoat, value, setSelectedGrindSealAdditionalTopCoat)}
-                            data={grindSealAdditionalTopCoatOptions}
-                            size="xs"
-                            allowDeselect={false}
-                          />
-                          {selectedGrindSealAdditionalTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Additional Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput
-                                size="xs"
-                                value={200} // Default rate - should refer to product
-                                onChange={() => { }} // Read-only for now
-                                min={100}
-                                max={300}
-                                step={25}
-                                description="Square feet per gallon"
-                                disabled
-                              />
-                              <Text size="xs" c="dimmed" mt="2">Rate: Refer to selected topcoat product specifications</Text>
-                            </Box>
-                          )}
-                        </div>
-                      </Stack>
-                    </Box>
-                  )}
-
-                  {/* System Components - Countertop Systems (hidden in Step 2) */}
-                  {showComponentsInStep2 && selectedSystem && selectedSystemGroup === 'countertops-custom' && (
-                    <Box mt="md" p="md" bg="gray.0" style={{ borderRadius: '8px' }}>
-                      <Group justify="space-between" align="center" mb="md">
-                        <Text fw={500} size="sm" c="green">System Components</Text>
-                        <Badge variant="light" color="green" size="sm">
-                          {[selectedCountertopPrimer, selectedCountertopBasePigment, selectedCountertopMetallicArtCoat, selectedCountertopFloodCoat, selectedCountertopTopCoat].filter(v => v).length + (selectedCountertopMetallicPigments.length > 0 ? 1 : 0)}/6 Selected
-                        </Badge>
-                      </Group>
-                      <Text size="xs" c="dimmed" mb="sm">Configure your countertop system components</Text>
-
-                      <Accordion variant="contained" radius="sm">
-                        {/* Primer Section */}
-                        <Accordion.Item value="primer" id="ct-step-1">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Text size="sm" fw={500}>Primer (Optional)</Text>
-                              {selectedCountertopPrimer && (
-                                <Badge variant="filled" color="green" size="sm">Selected</Badge>
-                              )}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Products from Primers category</Text>
-                            <Select
-                              placeholder="Select primer product..."
-                              value={selectedCountertopPrimer}
-                              onChange={(value) => setSelectedCountertopPrimer(value || '')}
-                              data={countertopPrimerOptions}
-                              size="sm"
-                            />
-                            {selectedCountertopPrimer && (
-                              <Box mt="xs">
-                                <Text size="xs" c="dimmed" mb="4">Bonding Primer Spread Rate Adjuster:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={200} // Default primer rate
-                                  onChange={() => { }} // Read-only for now
-                                  min={100}
-                                  max={300}
-                                  step={25}
-                                  description="Square feet per gallon"
-                                  disabled
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Rate: Refer to selected primer product specifications</Text>
-                                {guidedMode && (
-                                  <Button size="xs" variant="subtle" mt="xs" onClick={() => scrollToStep('ct-step-2')}>
-                                    Next: Base Pigment →
-                                  </Button>
-                                )}
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-
-                        {/* Base Pigment Section */}
-                        <Accordion.Item value="base-pigment" id="ct-step-2">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Text size="sm" fw={500}>Base Pigment (Optional)</Text>
-                              {selectedCountertopBasePigment && (
-                                <Badge variant="filled" color="green" size="sm">Selected</Badge>
-                              )}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Products from Base Pigments category</Text>
-                            <Select
-                              placeholder="Select base pigment product..."
-                              value={selectedCountertopBasePigment}
-                              onChange={(value) => setSelectedCountertopBasePigment(value || '')}
-                              data={countertopBasePigmentOptions}
-                              size="sm"
-                            />
-                            {selectedCountertopBasePigment && (
-                              <Box mt="xs">
-                                <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={countertopBaseCoatSpreadRate}
-                                  onChange={(value) => setCountertopBaseCoatSpreadRate(Number(value) || 400)}
-                                  min={200}
-                                  max={600}
-                                  step={25}
-                                  description="Square feet per gallon"
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Suggested: 1 qt per 100 sq ft (400 sq ft per gallon)</Text>
-                                {guidedMode && (
-                                  <Button size="xs" variant="subtle" mt="xs" onClick={() => scrollToStep('ct-step-3')}>
-                                    Next: Metallic Art Coat →
-                                  </Button>
-                                )}
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-
-                        {/* Metallic Art Coat Section */}
-                        <Accordion.Item value="metallic-art-coat" id="ct-step-3">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Text size="sm" fw={500} c="red">Metallic Art Coat * (Required)</Text>
-                              {selectedCountertopMetallicArtCoat && (
-                                <Badge variant="filled" color="green" size="sm">Selected</Badge>
-                              )}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Products from Metallic Money Coat category</Text>
-                            <Select
-                              placeholder="Select metallic art coat..."
-                              value={selectedCountertopMetallicArtCoat}
-                              onChange={(value) => setSelectedCountertopMetallicArtCoat(value || '')}
-                              data={countertopMetallicArtCoatOptions}
-                              size="sm"
-                            />
-                            {selectedCountertopMetallicArtCoat && (
-                              <Box mt="xs">
-                                <Text size="xs" c="dimmed" mb="4">Metallic Art Coat Application Rate:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={countertopMetallicArtCoatSpreadRate}
-                                  onChange={(value) => setCountertopMetallicArtCoatSpreadRate(Number(value) || 4.57)}
-                                  min={3}
-                                  max={8}
-                                  step={0.1}
-                                  decimalScale={2}
-                                  description="Display only - ounces per square foot used for calculations"
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Standard: 4 ounces per square foot</Text>
-                                {guidedMode && (
-                                  <Button size="xs" variant="subtle" mt="xs" onClick={() => scrollToStep('ct-step-4')}>
-                                    Next: Metallic Pigments →
-                                  </Button>
-                                )}
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-
-                        {/* Metallic Pigments Section */}
-                        <Accordion.Item value="metallic-pigments" id="ct-step-4">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Text size="sm" fw={500} c="red">Metallic Pigments * (Required)</Text>
-                              {selectedCountertopMetallicPigments.length > 0 && (
-                                <Badge variant="filled" color="green" size="sm">
-                                  {selectedCountertopMetallicPigments.length} Selected
-                                </Badge>
-                              )}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Select colors and set quantities for your metallic effect</Text>
-                            <Group gap={6} align="center" mb="md">
-                              <Text size="xs" c="dimmed">
-                                (<Text span inherit fw={600}>Mix Assistant</Text>: Recommend pigment counts by Primary/Accent/Depth roles based on your area. Choose pigments first, then Apply.)
-                              </Text>
-                              <Button size="xs" variant="light" onClick={applyCountertopMixAssistant}>Apply</Button>
-                            </Group>
-
-                            {/* Pigment Selection Dropdown */}
-                            <Group gap="xs" mb="md">
-                              <Select
-                                placeholder="Choose a metallic pigment to add..."
-                                value=""
-                                onChange={(value) => {
-                                  if (value) {
-                                    const option = countertopMetallicPigmentOptions.find(opt => opt.value === value);
-                                    if (option) {
-                                      const alreadySelected = selectedCountertopMetallicPigments.some(p => p.id === value);
-                                      if (!alreadySelected) {
-                                        setSelectedCountertopMetallicPigments([...selectedCountertopMetallicPigments, {
-                                          id: value,
-                                          name: option.label,
-                                          quantity: 1
-                                        }]);
-                                      }
-                                    }
-                                  }
-                                }}
-                                data={countertopMetallicPigmentOptions.filter(option =>
-                                  !selectedCountertopMetallicPigments.some(selected => selected.id === option.value)
-                                )}
-                                size="sm"
-                                style={{ flex: 1 }}
-                                searchable
-                              />
-                              <Button
-                                size="sm"
-                                variant="light"
-                                disabled={countertopMetallicPigmentOptions.length === 0 || selectedCountertopMetallicPigments.length >= countertopMetallicPigmentOptions.length}
-                              >
-                                Add
-                              </Button>
-                            </Group>
-
-                            {/* Selected Pigments List */}
-                            <Stack gap="sm">
-                              {selectedCountertopMetallicPigments.map((pigment, index) => (
-                                <Box key={`${pigment.id}-${index}`} p="sm" bg="white" style={{ borderRadius: '6px', border: '1px solid #e0e0e0' }}>
-                                  <Group gap="sm" align="center">
-                                    {/* Thumbnail preview if product has image */}
-                                    {(() => {
-                                      const prod = getProduct(pigment.id); return (
-                                        <ThumbImg src={prod ? getProductImageUrl(prod.image_url) : undefined} size={28} />
-                                      );
-                                    })()}
-                                    <Text size="sm" fw={500} style={{ flex: 1, minWidth: 0 }} truncate>
-                                      {pigment.name}
-                                    </Text>
-                                    <NumberInput
-                                      placeholder="Qty"
-                                      value={pigment.quantity}
-                                      onChange={(value) => {
-                                        setSelectedCountertopMetallicPigments(selectedCountertopMetallicPigments.map((p, i) =>
-                                          i === index ? { ...p, quantity: Number(value) || 0 } : p
-                                        ));
-                                      }}
-                                      min={0}
-                                      step={1}
-                                      size="sm"
-                                      w={80}
-                                    />
-                                    <Button
-                                      size="sm"
-                                      variant="subtle"
-                                      color="red"
-                                      onClick={() => {
-                                        setSelectedCountertopMetallicPigments(selectedCountertopMetallicPigments.filter((_, i) => i !== index));
-                                      }}
-                                    >
-                                      Remove
-                                    </Button>
-                                  </Group>
-                                </Box>
-                              ))}
-
-                              {selectedCountertopMetallicPigments.length === 0 && (
-                                <Box p="md" bg="gray.1" style={{ borderRadius: '6px', border: '1px dashed #ccc' }}>
-                                  <Text size="sm" c="dimmed" style={{ textAlign: 'center' }}>
-                                    No metallic pigments selected
-                                  </Text>
-                                </Box>
-                              )}
-                            </Stack>
-
-                            {selectedCountertopMetallicPigments.length > 0 && (
-                              <Box mt="md">
-                                <Text size="xs" c="dimmed" mb="4">Metallic Pigment Spread Rate Adjuster:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={countertopMetallicPigmentSpreadRate}
-                                  onChange={(value) => setCountertopMetallicPigmentSpreadRate(Number(value) || 1)}
-                                  min={0.1}
-                                  max={10}
-                                  step={0.1}
-                                  decimalScale={1}
-                                  description="Containers per 3-gal Art Coat kit"
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Suggested: 1 container per 3-gal kit</Text>
-                                {guidedMode && (
-                                  <Button size="xs" variant="subtle" mt="xs" onClick={() => scrollToStep('ct-step-5')}>
-                                    Next: Flood Coat →
-                                  </Button>
-                                )}
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-
-                        {/* Flood Coat Section */}
-                        <Accordion.Item value="flood-coat" id="ct-step-5">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Text size="sm" fw={500}>Flood Coat (Optional)</Text>
-                              {selectedCountertopFloodCoat && (
-                                <Badge variant="filled" color="green" size="sm">Selected</Badge>
-                              )}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Products from Metallic Money Coat - Usually have enough from Art Coat</Text>
-                            <Select
-                              placeholder="Select flood coat..."
-                              value={selectedCountertopFloodCoat}
-                              onChange={(value) => setSelectedCountertopFloodCoat(value || '')}
-                              data={countertopFloodCoatOptions}
-                              size="sm"
-                            />
-                            {selectedCountertopFloodCoat && (
-                              <Box mt="xs">
-                                <Text size="xs" c="dimmed" mb="4">Clear Coat Application Rate:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={countertopClearCoatSpreadRate}
-                                  onChange={(value) => setCountertopClearCoatSpreadRate(Number(value) || 4.57)}
-                                  min={3}
-                                  max={8}
-                                  step={0.1}
-                                  decimalScale={2}
-                                  description="Square feet per gallon"
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Standard: 3 ounces per square foot</Text>
-                                {guidedMode && (
-                                  <Button size="xs" variant="subtle" mt="xs" onClick={() => scrollToStep('ct-step-6')}>
-                                    Next: Top Coat →
-                                  </Button>
-                                )}
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-
-                        {/* Top Coat Section */}
-                        <Accordion.Item value="top-coat" id="ct-step-6">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Text size="sm" fw={500} c="red">Top Coat * (Required)</Text>
-                              {selectedCountertopTopCoat && (
-                                <Badge variant="filled" color="green" size="sm">Selected</Badge>
-                              )}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Products from Metallic Top Coats category</Text>
-                            <Select
-                              placeholder="Select top coat..."
-                              value={selectedCountertopTopCoat}
-                              onChange={(value) => setSelectedCountertopTopCoat(value || '')}
-                              data={countertopTopCoatOptions}
-                              size="sm"
-                            />
-                            {selectedCountertopTopCoat && (
-                              <Box mt="xs">
-                                <Text size="xs" c="dimmed" mb="4">Metallic Top Coat Spread Rate Adjuster:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={200} // Default rate - should refer to product
-                                  onChange={() => { }} // Read-only for now
-                                  min={100}
-                                  max={300}
-                                  step={25}
-                                  description="Square feet per gallon"
-                                  disabled
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Rate: Refer to selected topcoat product specifications</Text>
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-                      </Accordion>
-                    </Box>
-                  )}
+                  {/* (Step 2 system component pickers removed; see System Components section.) */}
                 </Box>
               </Stack>
             </Paper>
@@ -5255,1385 +3871,38 @@ export default function UniversalCalculator() {
         <section className="uc-split" aria-label="System Components and Add-On Options">
           <div id="uc-components" className="space-y-4">
             {/* System Components — moved out of Step 2 for better flow */}
-            {steps123Complete && selectedSystem && (
-              (
-                <Paper p="lg" withBorder mb="md" style={{ borderColor: '#16a34a', borderWidth: '2px' }}>
-                  <Group justify="space-between" align="center" mb="xs">
-                    <Title order={4} c="green">System Components</Title>
-                    <Badge variant="light" size="sm">{systemComponentsSummary.count} selected • ${systemComponentsSummary.subtotal.toFixed(2)}</Badge>
-                    <Group gap="xs">
-                      <Switch size="xs" checked={guidedMode} onChange={(e) => setGuidedMode(e.currentTarget.checked)} label="Guided" />
-                    </Group>
-                  </Group>
-                  <Text size="xs" c="dimmed" mb="md">Select products for each component of your chosen system. Quantities update totals live.</Text>
-
-                  {/* No MVB Flake System */}
-                  {(selectedSystem === 'no-mvb-flake-system' || products.find(p => p.id.toString() === selectedSystem)?.name === 'No MVB Flake System') && (
-                    <Box>
-                      <SimpleGrid cols={{ base: 1, md: guidedMode ? 1 : 2 }} spacing="sm">
-                        {/* Base Pigment (Optional) */}
-                        <div id={`${selectedSystem}-step-1`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">1</Badge>
-                            <Text size="xs" fw={500}>Base Pigment (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select base pigment product..." value={selectedBasePigment} onChange={(value) => handleSelectChange(selectedBasePigment, value, setSelectedBasePigment)} data={basePigmentOptions} size="xs" allowDeselect={false} />
-                          {selectedBasePigment && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Pigment Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={noMVBBasePigmentSpreadRate} onChange={(value) => setNoMVBBasePigmentSpreadRate(Number(value) || 1)} min={0.1} max={10} step={0.1} decimalScale={1} description="Pigments per 3-gal Base Coat kit" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 1 pigment per 3-gal kit (US Resin: 2 per kit)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Base Coat (Required) */}
-                        <div id={`${selectedSystem}-step-2`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">2</Badge>
-                            <Text size="xs" fw={500} c="red">Base Coat *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select base coat..." value={selectedBaseCoat} onChange={(value) => handleSelectChange(selectedBaseCoat, value, setSelectedBaseCoat)} data={baseCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={noMVBBaseCoatSpreadRate} onChange={(value) => setNoMVBBaseCoatSpreadRate(Number(value) || 100)} min={50} max={200} step={5} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 100 sq ft/gal (3-gal kit = 300 sq ft)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Flake Color (Required) */}
-                        <div id={`${selectedSystem}-step-3`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">3</Badge>
-                            <Text size="xs" fw={500} c="red">Flake Color *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select flake product..." value={selectedFlakeColor} onChange={(value) => handleSelectChange(selectedFlakeColor, value, setSelectedFlakeColor)} data={flakeColorOptions} size="xs" allowDeselect={false} />
-                          {selectedFlakeColor && (
-                            <Box mt="xs">
-                              {/* Preview thumbnail */}
-                              {(() => {
-                                const p = getProduct(selectedFlakeColor); return p ? (
-                                  <Group gap="xs" mb="xs" align="center">
-                                    <ThumbImg src={getProductImageUrl(p.image_url)} size={28} />
-                                    <Text size="xs" c="dimmed">Preview</Text>
-                                  </Group>
-                                ) : null;
-                              })()}
-                              <Text size="xs" c="dimmed" mb="4">Flake Color Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={noMVBFlakeColorSpreadRate} onChange={(value) => setNoMVBFlakeColorSpreadRate(Number(value) || 350)} min={200} max={500} step={25} description="Square feet per box" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 350 sq ft per box</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Top Coat (Required) */}
-                        <div id={`${selectedSystem}-step-4`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">4</Badge>
-                            <Text size="xs" fw={500} c="red">Top Coat *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select top coat..." value={selectedTopCoat} onChange={(value) => handleSelectChange(selectedTopCoat, value, setSelectedTopCoat)} data={topCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={noMVBTopCoatSpreadRate} onChange={(value) => setNoMVBTopCoatSpreadRate(Number(value) || 200)} min={100} max={300} step={25} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 200 sq ft per gallon (Polyaspartic)</Text>
-                            </Box>
-                          )}
-                        </div>
-                      </SimpleGrid>
-                    </Box>
-                  )}
-
-                  {selectedSystemGroup === 'polishing' && selectedSystem === 'polish-grind-seal' && (
-                    <Box>
-                      <SimpleGrid cols={{ base: 1, md: guidedMode ? 1 : 2 }} spacing="sm">
-                        {/* Metal Bond Diamonds (Required) */}
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">1</Badge>
-                            <Text size="xs" fw={500} c="red">Metal Bond Diamonds *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Select sequence (packs per grit are estimated).</Text>
-                          <Group gap={6} wrap="wrap">
-                            {['30/40', '60/80', '120/150'].map(g => (
-                              <Switch key={g} size="xs" checked={!!pgsMetalSelected[g]} onChange={(e) => setPgsMetalSelected({ ...pgsMetalSelected, [g]: e.currentTarget.checked })} label={g} />
-                            ))}
-                          </Group>
-                          <Group gap="sm" mt="xs">
-                            <NumberInput label="Coverage Adjuster" size="xs" value={pgsMetalAdj} onChange={(v) => setPgsMetalAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                          </Group>
-                        </div>
-
-                        {/* Slurry/Grout (Optional) */}
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">2</Badge>
-                            <Text size="xs" fw={500}>Prime/Grout Coat (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select slurry/grout..." value={pgsSlurry} onChange={(v) => handleSelectChange(pgsSlurry, v, setPgsSlurry)} data={slurryGroutOptions} size="xs" searchable allowDeselect={false} />
-                          {pgsSlurry && (
-                            <Group gap="sm" mt="xs">
-                              <NumberInput label="Coats" size="xs" value={pgsSlurryCoats} onChange={(v) => setPgsSlurryCoats(Number(v) || 1)} min={1} step={1} w={120} />
-                              <NumberInput label="Coverage Adjuster" size="xs" value={pgsSlurryAdj} onChange={(v) => setPgsSlurryAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 500 sq ft/gal</Text>
-                            </Group>
-                          )}
-                        </div>
-
-                        {/* Concrete Sealer / Guard (Required) */}
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">3</Badge>
-                            <Text size="xs" fw={500} c="red">Finish Sealer / Guard *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select sealer/guard..." value={pgsSealer} onChange={(v) => handleSelectChange(pgsSealer, v, setPgsSealer)} data={polishSealerGuardOptions} size="xs" searchable allowDeselect={false} />
-                          {pgsSealer && (
-                            <Group gap="sm" mt="xs">
-                              <NumberInput label="Coats" size="xs" value={pgsSealerCoats} onChange={(v) => setPgsSealerCoats(Number(v) || 1)} min={1} step={1} w={120} />
-                              <NumberInput label="Coverage Adjuster" size="xs" value={pgsSealerAdj} onChange={(v) => setPgsSealerAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Film default 400 • Penetrating 1,000 sq ft/gal</Text>
-                            </Group>
-                          )}
-                        </div>
-
-                        {/* Burnish (Optional) */}
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">4</Badge>
-                            <Text size="xs" fw={500}>Burnish (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select pad type..." value={pgsBurnishPad} onChange={(v) => handleSelectChange(pgsBurnishPad, v, setPgsBurnishPad)} data={burnishPadOptions} size="xs" searchable allowDeselect={false} />
-                          {pgsBurnishPad && (
-                            <NumberInput mt="xs" size="xs" label="Pad count" value={pgsBurnishCount} onChange={(v) => setPgsBurnishCount(Number(v) || 0)} min={0} step={1} />
-                          )}
-                        </div>
-                      </SimpleGrid>
-                    </Box>
-                  )}
-
-                  {selectedSystemGroup === 'polishing' && selectedSystem === 'polish-medium' && (
-                    <Box>
-                      <SimpleGrid cols={{ base: 1, md: guidedMode ? 1 : 2 }} spacing="sm">
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">1</Badge>
-                            <Text size="xs" fw={500}>Metal Prep</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Switch size="xs" checked={pmNeedMetal} onChange={(e) => setPmNeedMetal(e.currentTarget.checked)} label="Need Metal Prep" />
-                          {pmNeedMetal && (
-                            <>
-                              <Group gap={6} wrap="wrap" mt="xs">
-                                {['30/40', '70/80', '120'].map(g => (
-                                  <Switch key={g} size="xs" checked={!!pmMetalSelected[g]} onChange={(e) => setPmMetalSelected({ ...pmMetalSelected, [g]: e.currentTarget.checked })} label={g} />
-                                ))}
-                              </Group>
-                              <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={pmMetalAdj} onChange={(v) => setPmMetalAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                            </>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">2</Badge>
-                            <Text size="xs" fw={500}>Prime/Grout Coat (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select slurry/grout..." value={pmSlurry} onChange={(v) => handleSelectChange(pmSlurry, v, setPmSlurry)} data={slurryGroutOptions} size="xs" searchable allowDeselect={false} />
-                          {pmSlurry && (
-                            <>
-                              <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={pmSlurryAdj} onChange={(v) => setPmSlurryAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 500 sq ft/gal</Text>
-                            </>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">3</Badge>
-                            <Text size="xs" fw={500} c="red">Densifier (1 pass) *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select densifier..." value={pmDensifier} onChange={(v) => handleSelectChange(pmDensifier, v, setPmDensifier)} data={densifiersOptions} size="xs" searchable allowDeselect={false} />
-                          {pmDensifier && (
-                            <Group gap="sm" mt="xs">
-                              <NumberInput label="Passes" size="xs" value={pmDensifierPasses} onChange={(v) => setPmDensifierPasses(Number(v) || 1)} min={1} step={1} w={120} />
-                              <NumberInput label="Coverage Adjuster" size="xs" value={pmDensifierAdj} onChange={(v) => setPmDensifierAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 500 sq ft/gal</Text>
-                            </Group>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">4</Badge>
-                            <Text size="xs" fw={500} c="red">Resin Bond Pads *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed">Toggle grits</Text>
-                          <Group gap={6} wrap="wrap">
-                            {['50', '100', '200', '400'].map(g => (
-                              <Switch key={g} size="xs" checked={!!pmResinSelected[g]} onChange={(e) => setPmResinSelected({ ...pmResinSelected, [g]: e.currentTarget.checked })} label={g} />
-                            ))}
-                          </Group>
-                          <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={pmResinAdj} onChange={(v) => setPmResinAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                          <Text size="xs" c="dimmed">Default: 900 sq ft/pack/grit</Text>
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">5</Badge>
-                            <Text size="xs" fw={500} c="red">Guard (thin) *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select guard..." value={pmGuard} onChange={(v) => handleSelectChange(pmGuard, v, setPmGuard)} data={polishSealerGuardOptions} size="xs" searchable allowDeselect={false} />
-                          {pmGuard && (
-                            <Group gap="sm" mt="xs">
-                              <NumberInput label="Coats" size="xs" value={pmGuardCoats} onChange={(v) => setPmGuardCoats(Number(v) || 1)} min={1} step={1} w={120} />
-                              <NumberInput label="Coverage Adjuster" size="xs" value={pmGuardAdj} onChange={(v) => setPmGuardAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 1,800 sq ft/gal</Text>
-                            </Group>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">6</Badge>
-                            <Text size="xs" fw={500} c="red">Burnish *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select pad type..." value={pmBurnishPad} onChange={(v) => handleSelectChange(pmBurnishPad, v, setPmBurnishPad)} data={burnishPadOptions} size="xs" searchable allowDeselect={false} />
-                          <NumberInput mt="xs" size="xs" label="Pad count" value={pmBurnishCount} onChange={(v) => setPmBurnishCount(Number(v) || 1)} min={1} step={1} />
-                        </div>
-                      </SimpleGrid>
-                    </Box>
-                  )}
-
-                  {selectedSystemGroup === 'polishing' && selectedSystem === 'polish-true' && (
-                    <Box>
-                      <SimpleGrid cols={{ base: 1, md: guidedMode ? 1 : 2 }} spacing="sm">
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">1</Badge>
-                            <Text size="xs" fw={500} c="red">Metal Bond Diamonds *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Group gap={6} wrap="wrap">
-                            {['30/40', '70/80', '120'].map(g => (
-                              <Switch key={g} size="xs" checked={!!ptMetalSelected[g]} onChange={(e) => setPtMetalSelected({ ...ptMetalSelected, [g]: e.currentTarget.checked })} label={g} />
-                            ))}
-                          </Group>
-                          <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={ptMetalAdj} onChange={(v) => setPtMetalAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">2</Badge>
-                            <Text size="xs" fw={500}>Prime/Grout Coat (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select slurry/grout..." value={ptSlurry} onChange={(v) => handleSelectChange(ptSlurry, v, setPtSlurry)} data={slurryGroutOptions} size="xs" searchable allowDeselect={false} />
-                          {ptSlurry && (
-                            <>
-                              <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={ptSlurryAdj} onChange={(v) => setPtSlurryAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 500 sq ft/gal</Text>
-                            </>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">3</Badge>
-                            <Text size="xs" fw={500} c="red">Densifier #1 *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select densifier..." value={ptDensifier1} onChange={(v) => handleSelectChange(ptDensifier1, v, setPtDensifier1)} data={densifiersOptions} size="xs" searchable allowDeselect={false} />
-                          {ptDensifier1 && (
-                            <>
-                              <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={ptDensifier1Adj} onChange={(v) => setPtDensifier1Adj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 500 sq ft/gal</Text>
-                            </>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">4</Badge>
-                            <Text size="xs" fw={500} c="red">Resin Pads (full progression) *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Group gap={6} wrap="wrap">
-                            {['50', '100', '200', '400', '800'].map(g => (
-                              <Switch key={g} size="xs" checked={!!ptResinSelected[g]} onChange={(e) => setPtResinSelected({ ...ptResinSelected, [g]: e.currentTarget.checked })} label={g} />
-                            ))}
-                          </Group>
-                          <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={ptResinAdj} onChange={(v) => setPtResinAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                          <Text size="xs" c="dimmed">Default: 900 sq ft/pack/grit</Text>
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">5</Badge>
-                            <Text size="xs" fw={500}>Concrete Dye (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select dye..." value={ptDye} onChange={(v) => handleSelectChange(ptDye, v, setPtDye)} data={concreteDyesOptions} size="xs" searchable allowDeselect={false} />
-                          {ptDye && (
-                            <>
-                              <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={ptDyeAdj} onChange={(v) => setPtDyeAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed" mt="xs">Applied after 200/400 grit; locks with next densifier.</Text>
-                            </>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">6</Badge>
-                            <Text size="xs" fw={500}>Densifier #2 (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select densifier..." value={ptDensifier2} onChange={(v) => handleSelectChange(ptDensifier2, v, setPtDensifier2)} data={densifiersOptions} size="xs" searchable allowDeselect={false} />
-                          {ptDensifier2 && (
-                            <>
-                              <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={ptDensifier2Adj} onChange={(v) => setPtDensifier2Adj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 700 sq ft/gal</Text>
-                            </>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">7</Badge>
-                            <Text size="xs" fw={500} c="red">Micro-Guard / Guard (thin) *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select guard..." value={ptGuard} onChange={(v) => handleSelectChange(ptGuard, v, setPtGuard)} data={polishSealerGuardOptions} size="xs" searchable allowDeselect={false} />
-                          {ptGuard && (
-                            <Group gap="sm" mt="xs">
-                              <NumberInput label="Coats" size="xs" value={ptGuardCoats} onChange={(v) => setPtGuardCoats(Number(v) || 1)} min={1} step={1} w={120} />
-                              <NumberInput label="Coverage Adjuster" size="xs" value={ptGuardAdj} onChange={(v) => setPtGuardAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 1,900 sq ft/gal</Text>
-                            </Group>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">8</Badge>
-                            <Text size="xs" fw={500} c="red">Burnish *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select pad type..." value={ptBurnishPad} onChange={(v) => handleSelectChange(ptBurnishPad, v, setPtBurnishPad)} data={burnishPadOptions} size="xs" searchable allowDeselect={false} />
-                          <NumberInput mt="xs" size="xs" label="Pad count" value={ptBurnishCount} onChange={(v) => setPtBurnishCount(Number(v) || 1)} min={1} step={1} />
-                        </div>
-                      </SimpleGrid>
-                    </Box>
-                  )}
-
-                  {selectedSystemGroup === 'polishing' && selectedSystem === 'polish-high-end' && (
-                    <Box>
-                      <SimpleGrid cols={{ base: 1, md: guidedMode ? 1 : 2 }} spacing="sm">
-                        {/* Reuse structure from True Polish with premium guard & multi-pass burnish */}
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">1</Badge>
-                            <Text size="xs" fw={500} c="red">Metal Bond Diamonds *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Group gap={6} wrap="wrap">
-                            {['30/40', '70/80', '120'].map(g => (
-                              <Switch key={g} size="xs" checked={!!phMetalSelected[g]} onChange={(e) => setPhMetalSelected({ ...phMetalSelected, [g]: e.currentTarget.checked })} label={g} />
-                            ))}
-                          </Group>
-                          <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={phMetalAdj} onChange={(v) => setPhMetalAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">2</Badge>
-                            <Text size="xs" fw={500}>Prime/Grout Coat (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select slurry/grout..." value={phSlurry} onChange={(v) => handleSelectChange(phSlurry, v, setPhSlurry)} data={slurryGroutOptions} size="xs" searchable allowDeselect={false} />
-                          {phSlurry && (
-                            <>
-                              <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={phSlurryAdj} onChange={(v) => setPhSlurryAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 500 sq ft/gal</Text>
-                            </>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">3</Badge>
-                            <Text size="xs" fw={500} c="red">Densifier #1 *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select densifier..." value={phDensifier1} onChange={(v) => handleSelectChange(phDensifier1, v, setPhDensifier1)} data={densifiersOptions} size="xs" searchable allowDeselect={false} />
-                          {phDensifier1 && (
-                            <>
-                              <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={phDensifier1Adj} onChange={(v) => setPhDensifier1Adj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 500 sq ft/gal</Text>
-                            </>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">4</Badge>
-                            <Text size="xs" fw={500} c="red">Resin Pads (full) *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Group gap={6} wrap="wrap">
-                            {['50', '100', '200', '400', '800', '1500', '3000'].map(g => (
-                              <Switch key={g} size="xs" checked={!!phResinSelected[g]} onChange={(e) => setPhResinSelected({ ...phResinSelected, [g]: e.currentTarget.checked })} label={g} />
-                            ))}
-                          </Group>
-                          <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={phResinAdj} onChange={(v) => setPhResinAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                          <Text size="xs" c="dimmed">Default: 900 sq ft/pack/grit</Text>
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">5</Badge>
-                            <Text size="xs" fw={500}>Dye (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select dye..." value={phDye} onChange={(v) => handleSelectChange(phDye, v, setPhDye)} data={concreteDyesOptions} size="xs" searchable allowDeselect={false} />
-                          {phDye && (
-                            <>
-                              <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={phDyeAdj} onChange={(v) => setPhDyeAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed" mt="xs">Applied after 200/400 grit; locks with next densifier.</Text>
-                            </>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">6</Badge>
-                            <Text size="xs" fw={500}>Densifier #2</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select densifier..." value={phDensifier2} onChange={(v) => handleSelectChange(phDensifier2, v, setPhDensifier2)} data={densifiersOptions} size="xs" searchable allowDeselect={false} />
-                          {phDensifier2 && (
-                            <>
-                              <NumberInput mt="xs" size="xs" label="Coverage Adjuster" value={phDensifier2Adj} onChange={(v) => setPhDensifier2Adj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 700 sq ft/gal</Text>
-                            </>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">7</Badge>
-                            <Text size="xs" fw={500} c="red">Premium Micro-Guard (2 very thin coats) *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select premium guard..." value={phPremiumGuard} onChange={(v) => handleSelectChange(phPremiumGuard, v, setPhPremiumGuard)} data={premiumGuardsOptions} size="xs" searchable allowDeselect={false} />
-                          {phPremiumGuard && (
-                            <Group gap="sm" mt="xs">
-                              <NumberInput label="Coats" size="xs" value={phPremiumGuardCoats} onChange={(v) => setPhPremiumGuardCoats(Number(v) || 2)} min={1} step={1} w={120} />
-                              <NumberInput label="Coverage Adjuster" size="xs" value={phPremiumGuardAdj} onChange={(v) => setPhPremiumGuardAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed">Default: 2,000 sq ft/gal</Text>
-                            </Group>
-                          )}
-                        </div>
-
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">8</Badge>
-                            <Text size="xs" fw={500} c="red">High-Speed Burnish (multi-pass) *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select pad type..." value={phBurnishPad} onChange={(v) => handleSelectChange(phBurnishPad, v, setPhBurnishPad)} data={burnishPadOptions} size="xs" searchable allowDeselect={false} />
-                          <NumberInput mt="xs" size="xs" label="Pad count" value={phBurnishCount} onChange={(v) => setPhBurnishCount(Number(v) || 2)} min={1} step={1} />
-                        </div>
-                      </SimpleGrid>
-                    </Box>
-                  )}
-                  {/* MVB Flake System */}
-                  {selectedSystem === 'mvb-flake-system' && (
-                    <Box>
-                      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                        {/* Guided: MVB Flake */}
-                        {/* Base Pigment (Optional) */}
-                        <div id={`${selectedSystem}-step-1`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">1</Badge>
-                            <Text size="xs" fw={500}>Base Pigment (Optional)</Text>
-                          </Group>
-                          <Select placeholder="Select base pigment product..." value={selectedMVBBasePigment} onChange={(value) => handleSelectChange(selectedMVBBasePigment, value, setSelectedMVBBasePigment)} data={mvbBasePigmentOptions} size="xs" allowDeselect={false} />
-                          {selectedMVBBasePigment && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Pigment Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={mvbBasePigmentSpreadRate} onChange={(value) => setMVBBasePigmentSpreadRate(Number(value) || 1)} min={0.1} max={10} step={0.1} decimalScale={1} description="Pigments per 3-gal Base Coat kit" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 1 pigment per 3-gal kit (US Resin: 2 per kit)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Base Coat (Required - MVB) */}
-                        <div id={`${selectedSystem}-step-2`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">2</Badge>
-                            <Text size="xs" fw={500} c="red">Base Coat * (MVB)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select MVB base coat..." value={selectedMVBBaseCoat} onChange={(value) => handleSelectChange(selectedMVBBaseCoat, value, setSelectedMVBBaseCoat)} data={mvbBaseCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedMVBBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={mvbBaseCoatSpreadRate} onChange={(value) => setMVBBaseCoatSpreadRate(Number(value) || 100)} min={50} max={200} step={5} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 100 sq ft/gal (3-gal kit = 300 sq ft)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Flake Color */}
-                        <div id={`${selectedSystem}-step-3`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">3</Badge>
-                            <Text size="xs" fw={500} c="red">Flake Color *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select flake product..." value={selectedMVBFlakeColor} onChange={(value) => handleSelectChange(selectedMVBFlakeColor, value, setSelectedMVBFlakeColor)} data={mvbFlakeColorOptions} size="xs" allowDeselect={false} />
-                          {selectedMVBFlakeColor && (
-                            <Box mt="xs">
-                              {(() => {
-                                const p = getProduct(selectedMVBFlakeColor); return p ? (
-                                  <Group gap="xs" mb="xs" align="center">
-                                    <ThumbImg src={getProductImageUrl(p.image_url)} size={28} />
-                                    <Text size="xs" c="dimmed">Preview</Text>
-                                  </Group>
-                                ) : null;
-                              })()}
-                              <Text size="xs" c="dimmed" mb="4">Flake Color Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={mvbFlakeColorSpreadRate} onChange={(value) => setMVBFlakeColorSpreadRate(Number(value) || 350)} min={200} max={500} step={25} description="Square feet per box" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 350 sq ft per box</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Top Coat */}
-                        <div id={`${selectedSystem}-step-4`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">4</Badge>
-                            <Text size="xs" fw={500} c="red">Top Coat *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select top coat..." value={selectedMVBTopCoat} onChange={(value) => handleSelectChange(selectedMVBTopCoat, value, setSelectedMVBTopCoat)} data={mvbTopCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedMVBTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={mvbTopCoatSpreadRate} onChange={(value) => setMVBTopCoatSpreadRate(Number(value) || 200)} min={100} max={300} step={25} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 200 sq ft per gallon (Polyaspartic)</Text>
-                            </Box>
-                          )}
-                        </div>
-                      </SimpleGrid>
-                    </Box>
-                  )}
-
-                  {/* Solid Color System */}
-                  {selectedSystem === 'solid-color-system' && (
-                    <Box>
-                      <SimpleGrid cols={{ base: 1, md: guidedMode ? 1 : 2 }} spacing="sm">
-                        {/* Base Pigment (Optional) */}
-                        <div id={`${selectedSystem}-step-1`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">1</Badge>
-                            <Text size="xs" fw={500}>Base Pigment (Optional)</Text>
-                          </Group>
-                          <Select placeholder="Select base pigment product..." value={selectedSolidBasePigment} onChange={(value) => handleSelectChange(selectedSolidBasePigment, value, setSelectedSolidBasePigment)} data={solidBasePigmentOptions} size="xs" allowDeselect={false} />
-                          {selectedSolidBasePigment && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Pigment Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={solidBasePigmentSpreadRate} onChange={(value) => setSolidBasePigmentSpreadRate(Number(value) || 1)} min={0.1} max={10} step={0.1} decimalScale={1} description="Pigments per 3-gal Base Coat kit" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 1 pigment per 3-gal kit (US Resin: 2 per kit)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Grout Coat (Suggestive) */}
-                        <div id={`${selectedSystem}-step-2`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">2</Badge>
-                            <Text size="xs" fw={500} c="orange">Grout Coat (Suggestive)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Divider mb="xs" />
-                          <Select placeholder="Select grout coat..." value={selectedSolidGroutCoat} onChange={(value) => handleSelectChange(selectedSolidGroutCoat, value, setSelectedSolidGroutCoat)} data={solidGroutCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedSolidGroutCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Grout Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={solidGroutCoatSpreadRate} onChange={(value) => setSolidGroutCoatSpreadRate(Number(value) || 600)} min={400} max={800} step={25} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 600 sq ft/gal (3-gal kit = 1,800 sq ft)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Base Coat (Required) */}
-                        <div id={`${selectedSystem}-step-3`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">3</Badge>
-                            <Text size="xs" fw={500} c="red">Base Coat *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Divider mb="xs" />
-                          <Select placeholder="Select base coat..." value={selectedSolidBaseCoat} onChange={(value) => handleSelectChange(selectedSolidBaseCoat, value, setSelectedSolidBaseCoat)} data={solidBaseCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedSolidBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={solidBaseCoatSpreadRate} onChange={(value) => setSolidBaseCoatSpreadRate(Number(value) || 75)} min={50} max={150} step={5} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 75 sq ft/gal (3-gal kit = 225 sq ft)</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Extra Base Coat (Optional) */}
-                        <div id={`${selectedSystem}-step-4`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">4</Badge>
-                            <Text size="xs" fw={500}>Extra Base Coat (Clear Coat - Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select extra base coat..." value={selectedSolidExtraBaseCoat} onChange={(value) => handleSelectChange(selectedSolidExtraBaseCoat, value, setSelectedSolidExtraBaseCoat)} data={solidExtraBaseCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedSolidExtraBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Extra Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={solidExtraBaseCoatSpreadRate} onChange={(value) => setSolidExtraBaseCoatSpreadRate(Number(value) || 80)} min={50} max={150} step={5} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 80 sq ft per gallon</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Top Coat (Required) */}
-                        <div id={`${selectedSystem}-step-5`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">5</Badge>
-                            <Text size="xs" fw={500} c="red">Top Coat *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select top coat..." value={selectedSolidTopCoat} onChange={(value) => handleSelectChange(selectedSolidTopCoat, value, setSelectedSolidTopCoat)} data={solidTopCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedSolidTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={solidTopCoatSpreadRate} onChange={(value) => setSolidTopCoatSpreadRate(Number(value) || 200)} min={100} max={300} step={25} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Rate: Prefilled from selected topcoat; adjust if needed</Text>
-                            </Box>
-                          )}
-                        </div>
-                      </SimpleGrid>
-                    </Box>
-                  )}
-
-                  {/* Metallic System */}
-                  {selectedSystem === 'metallic-system' && (
-                    <Box>
-                      <SimpleGrid cols={{ base: 1, md: guidedMode ? 1 : 2 }} spacing="sm">
-                        {/* Base Pigment (Optional) */}
-                        <div id={`${selectedSystem}-step-1`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">1</Badge>
-                            <Text size="xs" fw={500}>Base Pigment (Optional)</Text>
-                          </Group>
-                          <Select placeholder="Select base pigment product..." value={selectedMetallicBasePigment} onChange={(value) => handleSelectChange(selectedMetallicBasePigment, value, setSelectedMetallicBasePigment)} data={metallicBasePigmentOptions} size="xs" allowDeselect={false} />
-                          {selectedMetallicBasePigment && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Pigment Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={metallicBasePigmentSpreadRate} onChange={(value) => setMetallicBasePigmentSpreadRate(Number(value) || 1)} min={0.1} max={10} step={0.1} decimalScale={1} description="Pigments per 3-gal Base Coat kit" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 1 pigment per 3-gal kit (US Resin: 2 per kit)</Text>
-                              {guidedMode && (
-                                <Button size="xs" variant="subtle" mt="xs" onClick={() => scrollToStep(`${selectedSystem}-step-2`)}>
-                                  Next: Grout Coat →
-                                </Button>
-                              )}
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Grout Coat (Suggestive) */}
-                        <div id={`${selectedSystem}-step-2`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">2</Badge>
-                            <Text size="xs" fw={500} c="orange">Grout Coat (Suggestive)</Text>
-                          </Group>
-                          <Select placeholder="Select grout coat..." value={selectedMetallicGroutCoat} onChange={(value) => handleSelectChange(selectedMetallicGroutCoat, value, setSelectedMetallicGroutCoat)} data={metallicGroutCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedMetallicGroutCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Grout Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={metallicGroutCoatSpreadRate} onChange={(value) => setMetallicGroutCoatSpreadRate(Number(value) || 600)} min={400} max={800} step={25} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 600 sq ft/gal (3-gal kit = 1,800 sq ft)</Text>
-                              {guidedMode && (
-                                <Button size="xs" variant="subtle" mt="xs" onClick={() => scrollToStep(`${selectedSystem}-step-3`)}>
-                                  Next: Base Coat →
-                                </Button>
-                              )}
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Base Coat (Required) */}
-                        <div id={`${selectedSystem}-step-3`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">3</Badge>
-                            <Text size="xs" fw={500} c="red">Base Coat *</Text>
-                          </Group>
-                          <Select placeholder="Select base coat..." value={selectedMetallicBaseCoat} onChange={(value) => handleSelectChange(selectedMetallicBaseCoat, value, setSelectedMetallicBaseCoat)} data={metallicBaseCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedMetallicBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={metallicBaseCoatSpreadRate} onChange={(value) => setMetallicBaseCoatSpreadRate(Number(value) || 80)} min={50} max={150} step={5} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 80 sq ft/gal (3-gal kit = 240 sq ft)</Text>
-                              {guidedMode && (
-                                <Button size="xs" variant="subtle" mt="xs" onClick={() => scrollToStep(`${selectedSystem}-step-4`)}>
-                                  Next: Metallic Money Coat →
-                                </Button>
-                              )}
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Metallic Money Coat (Required) */}
-                        <div id={`${selectedSystem}-step-4`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">4</Badge>
-                            <Text size="xs" fw={500} c="red">Metallic Money Coat *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select metallic money coat..." value={selectedMetallicMoneyCoat} onChange={(value) => handleSelectChange(selectedMetallicMoneyCoat, value, setSelectedMetallicMoneyCoat)} data={metallicMoneyCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedMetallicMoneyCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Metallic Money Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={metallicMoneyCoatSpreadRate} onChange={(value) => setMetallicMoneyCoatSpreadRate(Number(value) || 30)} min={20} max={50} step={5} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 30 sq ft per gallon</Text>
-                              {guidedMode && (
-                                <Button size="xs" variant="subtle" mt="xs" onClick={() => scrollToStep(`${selectedSystem}-step-5`)}>
-                                  Next: Metallic Pigments →
-                                </Button>
-                              )}
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Metallic Pigment (multi-select) */}
-                        <div id={`${selectedSystem}-step-5`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">5</Badge>
-                            <Text size="xs" fw={500} c="red">Metallic Pigment * (Multiple selections)</Text>
-                            {/* Inline Mix Assistant helper under the label */}
-                            <Group gap={6} align="center" mb="xs">
-                              <Text size="xs" c="dimmed">
-                                (<Text span inherit fw={600}>Mix Assistant</Text>: Recommend pigment counts by Primary/Accent/Depth roles based on your area. Choose pigments first, then Apply.)
-                              </Text>
-                              <Button size="xs" variant="light" onClick={applyMetallicMixAssistant}>Apply</Button>
-                            </Group>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Select colors and set quantities for your metallic effect</Text>
-                          <Group gap="xs" mb="xs">
-                            <Select placeholder="Choose a metallic pigment to add..." value="" onChange={(value) => {
-                              if (value) {
-                                const option = metallicPigmentOptions.find(opt => opt.value === value);
-                                if (option) {
-                                  const alreadySelected = selectedMetallicPigments.some(p => p.id === value);
-                                  if (!alreadySelected) {
-                                    setSelectedMetallicPigments([...selectedMetallicPigments, { id: value, name: option.label, quantity: 1 }]);
-                                  }
-                                }
-                              }
-                            }} data={metallicPigmentOptions.filter(option => !selectedMetallicPigments.some(selected => selected.id === option.value))} size="xs" style={{ flex: 1 }} searchable />
-                            <Button size="xs" variant="light" disabled={metallicPigmentOptions.length === 0 || selectedMetallicPigments.length >= metallicPigmentOptions.length}>Add</Button>
-                          </Group>
-                          <Stack gap="xs">
-                            {selectedMetallicPigments.map((pigment, index) => (
-                              <Box key={`${pigment.id}-${index}`} p="xs" bg="white" style={{ borderRadius: '4px', border: '1px solid #e0e0e0' }}>
-                                <Group gap="xs" align="center">
-                                  {(() => {
-                                    const prod = getProduct(pigment.id); return (
-                                      <ThumbImg src={prod ? getProductImageUrl(prod.image_url) : undefined} size={24} />
-                                    );
-                                  })()}
-                                  <Text size="xs" fw={500} style={{ flex: 1, minWidth: 0 }} truncate>
-                                    {pigment.name}
-                                  </Text>
-                                  <NumberInput placeholder="Qty" value={pigment.quantity} onChange={(value) => { setSelectedMetallicPigments(selectedMetallicPigments.map((p, i) => i === index ? { ...p, quantity: Number(value) || 0 } : p)); }} min={0} step={1} size="xs" w={70} styles={{ input: { textAlign: 'center' } }} />
-                                  <Button size="xs" variant="subtle" color="red" onClick={() => { setSelectedMetallicPigments(selectedMetallicPigments.filter((_, i) => i !== index)); }} w={30} h={24} p={0}>×</Button>
-                                </Group>
-                              </Box>
-                            ))}
-                            {selectedMetallicPigments.length === 0 && (
-                              <Box p="xs" bg="gray.1" style={{ borderRadius: '4px', border: '1px dashed #ccc' }}>
-                                <Text size="xs" c="dimmed" style={{ textAlign: 'center' }}>No metallic pigments selected</Text>
-                              </Box>
-                            )}
-                            {guidedMode && selectedMetallicPigments.length > 0 && (
-                              <Button size="xs" variant="subtle" mt="xs" onClick={() => scrollToStep(`${selectedSystem}-step-6`)}>
-                                Next: Top Coat →
-                              </Button>
-                            )}
-                          </Stack>
-                        </div>
-
-                        {/* Top Coat (Required) */}
-                        <div id={`${selectedSystem}-step-6`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">6</Badge>
-                            <Text size="xs" fw={500} c="red">Top Coat *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Select placeholder="Select top coat..." value={selectedMetallicTopCoat} onChange={(value) => setSelectedMetallicTopCoat(value || '')} data={metallicTopCoatOptions} size="xs" />
-                          {selectedMetallicTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Metallic Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={metallicTopCoatSpreadRate} onChange={(value) => setMetallicTopCoatSpreadRate(Number(value) || 200)} min={100} max={400} step={5} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested from product when available; editable for job-specific conditions.</Text>
-                            </Box>
-                          )}
-                        </div>
-                      </SimpleGrid>
-                    </Box>
-                  )}
-
-                  {/* Polishing Systems */}
-                  {selectedSystemGroup === 'polishing' && selectedSystem === 'polish-clean-seal' && (
-                    <Box>
-                      <SimpleGrid cols={{ base: 1, md: guidedMode ? 1 : 2 }} spacing="sm">
-                        {/* Surface Cleaner (Required) */}
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">1</Badge>
-                            <Text size="xs" fw={500} c="red">Surface Cleaner *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Products from Cleaners/Neutralizers</Text>
-                          <Select placeholder="Select cleaner..." value={polishCleaner} onChange={(v) => handleSelectChange(polishCleaner, v, setPolishCleaner)} data={polishCleanerOptions} size="xs" searchable allowDeselect={false} />
-                          {polishCleaner && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Coverage Adjuster</Text>
-                              <NumberInput size="xs" value={polishCleanerAdj} onChange={(v) => setPolishCleanerAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              <Text size="xs" c="dimmed" mt="2">Default: 1,000 sq ft per gallon</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Crack & Joint Filler (Optional) */}
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">2</Badge>
-                            <Text size="xs" fw={500}>Crack & Joint Filler (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Products from Crack & Joint Filler</Text>
-                          <Select placeholder="Select filler..." value={polishCrackFiller} onChange={(v) => handleSelectChange(polishCrackFiller, v, setPolishCrackFiller)} data={polishCrackFillerOptions} size="xs" searchable allowDeselect={false} />
-                          {polishCrackFiller && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Linear feet or unit count</Text>
-                              <NumberInput size="xs" value={polishCrackFillerQty} onChange={(v) => setPolishCrackFillerQty(Number(v) || 0)} min={0} step={1} />
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Concrete Sealer / Guard (Required) */}
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">3</Badge>
-                            <Text size="xs" fw={500} c="red">Concrete Sealer / Guard *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Products from Sealers & Guards (film-forming or penetrating)</Text>
-                          <Select placeholder="Select sealer/guard..." value={polishSealerGuard} onChange={(v) => handleSelectChange(polishSealerGuard, v, setPolishSealerGuard)} data={polishSealerGuardOptions} size="xs" searchable allowDeselect={false} />
-                          {polishSealerGuard && (
-                            <Stack gap={6} mt="xs">
-                              <Group gap="sm" align="flex-end">
-                                <NumberInput label="Coats" size="xs" value={polishSealerCoats} onChange={(v) => setPolishSealerCoats(Number(v) || 1)} min={1} step={1} w={120} />
-                                <NumberInput label="Coverage Adjuster" size="xs" value={polishSealerAdj} onChange={(v) => setPolishSealerAdj(Number(v) || 1)} min={0.1} step={0.1} decimalScale={2} w={180} rightSection={<Text size="xs" c="dimmed">×</Text>} />
-                              </Group>
-                              <Text size="xs" c="dimmed">Defaults: Film 300–500 (use 400) • Penetrating 800–1,200 (use 1,000) sq ft/gal when product lacks coverage.</Text>
-                            </Stack>
-                          )}
-                        </div>
-
-                        {/* Burnish (Optional) */}
-                        <div>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">4</Badge>
-                            <Text size="xs" fw={500}>Burnish (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Products from Burnishing Pads</Text>
-                          <Select placeholder="Select pad type..." value={polishBurnishPad} onChange={(v) => handleSelectChange(polishBurnishPad, v, setPolishBurnishPad)} data={burnishPadOptions} size="xs" searchable allowDeselect={false} />
-                          {polishBurnishPad && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Pad count</Text>
-                              <NumberInput size="xs" value={polishBurnishCount} onChange={(v) => setPolishBurnishCount(Number(v) || 0)} min={0} step={1} />
-                            </Box>
-                          )}
-                        </div>
-                      </SimpleGrid>
-                    </Box>
-                  )}
-
-                  {/* Existing resin-flooring Grind & Seal UI (unchanged) */}
-                  {selectedSystemGroup !== 'polishing' && selectedSystem === 'grind-seal-system' && (
-                    <Box>
-                      <SimpleGrid cols={{ base: 1, md: guidedMode ? 1 : 2 }} spacing="sm">
-                        {/* Primer (Optional) */}
-                        <div id={`${selectedSystem}-step-1`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">1</Badge>
-                            <Text size="xs" fw={500}>Primer (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Choose none if not selecting product</Text>
-                          <Select placeholder="Select primer product..." value={selectedGrindSealPrimer} onChange={(value) => handleSelectChange(selectedGrindSealPrimer, value, setSelectedGrindSealPrimer)} data={grindSealPrimerOptions} size="xs" allowDeselect={false} />
-                          {selectedGrindSealPrimer && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Primer Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={200} onChange={() => { }} min={100} max={300} step={25} description="Square feet per gallon" disabled />
-                              <Text size="xs" c="dimmed" mt="2">Rate: Refer to selected primer product specifications</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Grout Coat (Optional) */}
-                        <div id={`${selectedSystem}-step-2`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">2</Badge>
-                            <Text size="xs" fw={500}>Grout Coat (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Products from Epoxy or Metallic Top Coats categories</Text>
-                          <Select placeholder="Select grout coat..." value={selectedGrindSealGroutCoat} onChange={(value) => handleSelectChange(selectedGrindSealGroutCoat, value, setSelectedGrindSealGroutCoat)} data={grindSealGroutCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedGrindSealGroutCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Grout Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={grindSealGroutSpreadRate} onChange={(value) => setGrindSealGroutSpreadRate(Number(value) || 600)} min={400} max={800} step={25} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 600 sq ft per gallon</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Base Coat (Optional) */}
-                        <div id={`${selectedSystem}-step-3`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">3</Badge>
-                            <Text size="xs" fw={500}>Base Coat (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Products from Epoxy or Metallic Top Coats categories</Text>
-                          <Select placeholder="Select base coat..." value={selectedGrindSealBaseCoat} onChange={(value) => handleSelectChange(selectedGrindSealBaseCoat, value, setSelectedGrindSealBaseCoat)} data={grindSealBaseCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedGrindSealBaseCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={grindSealBaseSpreadRate} onChange={(value) => setGrindSealBaseSpreadRate(Number(value) || 125)} min={75} max={200} step={25} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 125 sq ft per gallon</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Intermediate Coat (Required) */}
-                        <div id={`${selectedSystem}-step-4`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">4</Badge>
-                            <Text size="xs" fw={500} c="red">Intermediate Coat *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Products from Epoxy or Metallic Top Coats categories</Text>
-                          <Select placeholder="Select intermediate coat..." value={selectedGrindSealIntermediateCoat} onChange={(value) => handleSelectChange(selectedGrindSealIntermediateCoat, value, setSelectedGrindSealIntermediateCoat)} data={grindSealIntermediateCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedGrindSealIntermediateCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Intermediate Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={grindSealIntermediateCoatSpreadRate} onChange={(value) => setGrindSealIntermediateCoatSpreadRate(Number(value) || 150)} min={100} max={250} step={25} description="Square feet per gallon" />
-                              <Text size="xs" c="dimmed" mt="2">Suggested: 150 sq ft per gallon</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Top Coat (Required) */}
-                        <div id={`${selectedSystem}-step-5`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">5</Badge>
-                            <Text size="xs" fw={500} c="red">Top Coat *</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Products from Metallic Top Coats or Polyaspartic Topcoats</Text>
-                          <Select placeholder="Select top coat..." value={selectedGrindSealTopCoat} onChange={(value) => handleSelectChange(selectedGrindSealTopCoat, value, setSelectedGrindSealTopCoat)} data={grindSealTopCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedGrindSealTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={200} onChange={() => { }} min={100} max={300} step={25} description="Square feet per gallon" disabled />
-                              <Text size="xs" c="dimmed" mt="2">Rate: Refer to selected topcoat product specifications</Text>
-                            </Box>
-                          )}
-                        </div>
-
-                        {/* Additional Top Coat (Optional) */}
-                        <div id={`${selectedSystem}-step-6`}>
-                          <Group gap="xs" mb="xs" align="center">
-                            <Badge size="xs" color="gray" variant="filled">6</Badge>
-                            <Text size="xs" fw={500}>Additional Top Coat (Optional)</Text>
-                          </Group>
-                          <Divider mb="xs" />
-                          <Text size="xs" c="dimmed" mb="xs">Products from Metallic Top Coats or Polyaspartic Topcoats</Text>
-                          <Select placeholder="Select additional top coat..." value={selectedGrindSealAdditionalTopCoat} onChange={(value) => handleSelectChange(selectedGrindSealAdditionalTopCoat, value, setSelectedGrindSealAdditionalTopCoat)} data={grindSealAdditionalTopCoatOptions} size="xs" allowDeselect={false} />
-                          {selectedGrindSealAdditionalTopCoat && (
-                            <Box mt="xs">
-                              <Text size="xs" c="dimmed" mb="4">Additional Top Coat Spread Rate Adjuster:</Text>
-                              <NumberInput size="xs" value={200} onChange={() => { }} min={100} max={300} step={25} description="Square feet per gallon" disabled />
-                              <Text size="xs" c="dimmed" mt="2">Rate: Refer to selected topcoat product specifications</Text>
-                            </Box>
-                          )}
-                        </div>
-                      </SimpleGrid>
-                    </Box>
-                  )}
-
-                  {/* Countertops Systems */}
-                  {selectedSystemGroup === 'countertops-custom' && (
-                    <Box>
-                      <Accordion variant="contained" radius="sm">
-                        {/* Primer Section */}
-                        <Accordion.Item value="primer">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Group gap="xs" align="center">
-                                <Badge size="xs" color="gray" variant="filled">1</Badge>
-                                <Text size="sm" fw={500}>Primer (Optional)</Text>
-                              </Group>
-                              {selectedCountertopPrimer && (<Badge variant="filled" color="green" size="sm">Selected</Badge>)}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Products from Primers category</Text>
-                            <Select
-                              placeholder="Select primer product..."
-                              value={selectedCountertopPrimer}
-                              onChange={(value) => setSelectedCountertopPrimer(value || '')}
-                              data={countertopPrimerOptions}
-                              size="sm"
-                            />
-                            {selectedCountertopPrimer && (
-                              <Box mt="xs">
-                                <Text size="xs" c="dimmed" mb="4">Bonding Primer Spread Rate Adjuster:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={200}
-                                  onChange={() => { }}
-                                  min={100}
-                                  max={300}
-                                  step={25}
-                                  description="Square feet per gallon"
-                                  disabled
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Rate: Refer to selected primer product specifications</Text>
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-
-                        {/* Base Pigment Section */}
-                        <Accordion.Item value="base-pigment">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Group gap="xs" align="center">
-                                <Badge size="xs" color="gray" variant="filled">2</Badge>
-                                <Text size="sm" fw={500}>Base Pigment (Optional)</Text>
-                              </Group>
-                              {selectedCountertopBasePigment && (
-                                <Badge variant="filled" color="green" size="sm">Selected</Badge>
-                              )}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Products from Base Pigments category</Text>
-                            <Select
-                              placeholder="Select base pigment product..."
-                              value={selectedCountertopBasePigment}
-                              onChange={(value) => setSelectedCountertopBasePigment(value || '')}
-                              data={countertopBasePigmentOptions}
-                              size="sm"
-                            />
-                            {selectedCountertopBasePigment && (
-                              <Box mt="xs">
-                                <Text size="xs" c="dimmed" mb="4">Base Coat Spread Rate Adjuster:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={countertopBaseCoatSpreadRate}
-                                  onChange={(value) => setCountertopBaseCoatSpreadRate(Number(value) || 400)}
-                                  min={200}
-                                  max={600}
-                                  step={25}
-                                  description="Square feet per gallon"
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Suggested: 1 qt per 100 sq ft (400 sq ft per gallon)</Text>
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-
-                        {/* Metallic Art Coat Section */}
-                        <Accordion.Item value="metallic-art-coat">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Group gap="xs" align="center">
-                                <Badge size="xs" color="gray" variant="filled">3</Badge>
-                                <Text size="sm" fw={500} c="red">Metallic Art Coat * (Required)</Text>
-                              </Group>
-                              {selectedCountertopMetallicArtCoat && (
-                                <Badge variant="filled" color="green" size="sm">Selected</Badge>
-                              )}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Products from Metallic Money Coat category</Text>
-                            <Select
-                              placeholder="Select metallic art coat..."
-                              value={selectedCountertopMetallicArtCoat}
-                              onChange={(value) => setSelectedCountertopMetallicArtCoat(value || '')}
-                              data={countertopMetallicArtCoatOptions}
-                              size="sm"
-                            />
-                            {selectedCountertopMetallicArtCoat && (
-                              <Box mt="xs">
-                                <Text size="xs" c="dimmed" mb="4">Metallic Art Coat Spread Rate Adjuster:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={countertopMetallicArtCoatSpreadRate}
-                                  onChange={(value) => setCountertopMetallicArtCoatSpreadRate(Number(value) || 4.57)}
-                                  min={3}
-                                  max={8}
-                                  step={0.1}
-                                  decimalScale={2}
-                                  description="Square feet per gallon"
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Suggested: 3.5 oz per sq ft (4.57 sq ft per gallon)</Text>
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-
-                        {/* Metallic Pigments Section */}
-                        <Accordion.Item value="metallic-pigments">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Group gap="xs" align="center">
-                                <Badge size="xs" color="gray" variant="filled">4</Badge>
-                                <Text size="sm" fw={500} c="red">Metallic Pigments * (Required)</Text>
-                              </Group>
-                              {selectedCountertopMetallicPigments.length > 0 && (
-                                <Badge variant="filled" color="green" size="sm">
-                                  {selectedCountertopMetallicPigments.length} Selected
-                                </Badge>
-                              )}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Select colors and set quantities for your metallic effect</Text>
-                            <Group gap={6} align="center" mb="md">
-                              <Text size="xs" c="dimmed">
-                                (<Text span inherit fw={600}>Mix Assistant</Text>: Recommend pigment counts by Primary/Accent/Depth roles based on your area. Choose pigments first, then Apply.)
-                              </Text>
-                              <Button size="xs" variant="light" onClick={applyCountertopMixAssistant}>Apply</Button>
-                            </Group>
-                            <Group gap="xs" mb="md">
-                              <Select
-                                placeholder="Choose a metallic pigment to add..."
-                                value=""
-                                onChange={(value) => {
-                                  if (value) {
-                                    const option = countertopMetallicPigmentOptions.find(opt => opt.value === value);
-                                    if (option) {
-                                      const alreadySelected = selectedCountertopMetallicPigments.some(p => p.id === value);
-                                      if (!alreadySelected) {
-                                        setSelectedCountertopMetallicPigments([
-                                          ...selectedCountertopMetallicPigments,
-                                          { id: value, name: option.label, quantity: 1 }
-                                        ]);
-                                      }
-                                    }
-                                  }
-                                }}
-                                data={countertopMetallicPigmentOptions.filter(option => !selectedCountertopMetallicPigments.some(selected => selected.id === option.value))}
-                                size="sm"
-                                style={{ flex: 1 }}
-                                searchable
-                              />
-                              <Button
-                                size="sm"
-                                variant="light"
-                                disabled={countertopMetallicPigmentOptions.length === 0 || selectedCountertopMetallicPigments.length >= countertopMetallicPigmentOptions.length}
-                              >
-                                Add
-                              </Button>
-                            </Group>
-                            <Stack gap="sm">
-                              {selectedCountertopMetallicPigments.map((pigment, index) => (
-                                <Box key={`${pigment.id}-${index}`} p="sm" bg="white" style={{ borderRadius: '6px', border: '1px solid #e0e0e0' }}>
-                                  <Group gap="sm" align="center">
-                                    {(() => {
-                                      const prod = getProduct(pigment.id); return (
-                                        <ThumbImg src={prod ? getProductImageUrl(prod.image_url) : undefined} size={28} />
-                                      );
-                                    })()}
-                                    <Text size="sm" fw={500} style={{ flex: 1, minWidth: 0 }} truncate>
-                                      {pigment.name}
-                                    </Text>
-                                    <NumberInput
-                                      placeholder="Qty"
-                                      value={pigment.quantity}
-                                      onChange={(value) => {
-                                        setSelectedCountertopMetallicPigments(selectedCountertopMetallicPigments.map((p, i) =>
-                                          i === index ? { ...p, quantity: Number(value) || 0 } : p
-                                        ));
-                                      }}
-                                      min={0}
-                                      step={1}
-                                      size="sm"
-                                      w={80}
-                                    />
-                                    <Button
-                                      size="sm"
-                                      variant="subtle"
-                                      color="red"
-                                      onClick={() => {
-                                        setSelectedCountertopMetallicPigments(selectedCountertopMetallicPigments.filter((_, i) => i !== index));
-                                      }}
-                                    >
-                                      Remove
-                                    </Button>
-                                  </Group>
-                                </Box>
-                              ))}
-
-                              {selectedCountertopMetallicPigments.length === 0 && (
-                                <Box p="md" bg="gray.1" style={{ borderRadius: '6px', border: '1px dashed #ccc' }}>
-                                  <Text size="sm" c="dimmed" style={{ textAlign: 'center' }}>
-                                    No metallic pigments selected
-                                  </Text>
-                                </Box>
-                              )}
-                            </Stack>
-
-                            {selectedCountertopMetallicPigments.length > 0 && (
-                              <Box mt="md">
-                                <Text size="xs" c="dimmed" mb="4">Metallic Pigment Spread Rate Adjuster:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={countertopMetallicPigmentSpreadRate}
-                                  onChange={(value) => setCountertopMetallicPigmentSpreadRate(Number(value) || 1)}
-                                  min={0.1}
-                                  max={10}
-                                  step={0.1}
-                                  decimalScale={1}
-                                  description="Containers per 3-gal Art Coat kit"
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Suggested: 1 container per 3-gal kit</Text>
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-
-                        {/* Flood Coat Section */}
-                        <Accordion.Item value="flood-coat">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Group gap="xs" align="center">
-                                <Badge size="xs" color="gray" variant="filled">5</Badge>
-                                <Text size="sm" fw={500}>Flood Coat (Optional)</Text>
-                              </Group>
-                              {selectedCountertopFloodCoat && (
-                                <Badge variant="filled" color="green" size="sm">Selected</Badge>
-                              )}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Products from Metallic Money Coat - Usually have enough from Art Coat</Text>
-                            <Select
-                              placeholder="Select flood coat..."
-                              value={selectedCountertopFloodCoat}
-                              onChange={(value) => setSelectedCountertopFloodCoat(value || '')}
-                              data={countertopFloodCoatOptions}
-                              size="sm"
-                            />
-                            {selectedCountertopFloodCoat && (
-                              <Box mt="xs">
-                                <Text size="xs" c="dimmed" mb="4">Clear Coat Spread Rate Adjuster:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={countertopClearCoatSpreadRate}
-                                  onChange={(value) => setCountertopClearCoatSpreadRate(Number(value) || 4.57)}
-                                  min={3}
-                                  max={8}
-                                  step={0.1}
-                                  decimalScale={2}
-                                  description="Square feet per gallon"
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Suggested: 3.5 oz per sq ft (4.57 sq ft per gallon)</Text>
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-
-                        {/* Top Coat Section */}
-                        <Accordion.Item value="top-coat">
-                          <Accordion.Control>
-                            <Group justify="space-between" align="center">
-                              <Group gap="xs" align="center">
-                                <Badge size="xs" color="gray" variant="filled">6</Badge>
-                                <Text size="sm" fw={500} c="red">Top Coat * (Required)</Text>
-                              </Group>
-                              {selectedCountertopTopCoat && (
-                                <Badge variant="filled" color="green" size="sm">Selected</Badge>
-                              )}
-                            </Group>
-                          </Accordion.Control>
-                          <Accordion.Panel>
-                            <Text size="xs" c="dimmed" mb="xs">Products from Metallic Top Coats category</Text>
-                            <Select
-                              placeholder="Select top coat..."
-                              value={selectedCountertopTopCoat}
-                              onChange={(value) => setSelectedCountertopTopCoat(value || '')}
-                              data={countertopTopCoatOptions}
-                              size="sm"
-                            />
-                            {selectedCountertopTopCoat && (
-                              <Box mt="xs">
-                                <Text size="xs" c="dimmed" mb="4">Metallic Top Coat Spread Rate Adjuster:</Text>
-                                <NumberInput
-                                  size="xs"
-                                  value={200}
-                                  onChange={() => { }}
-                                  min={100}
-                                  max={300}
-                                  step={25}
-                                  description="Square feet per gallon"
-                                  disabled
-                                />
-                                <Text size="xs" c="dimmed" mt="2">Rate: Refer to selected topcoat product specifications</Text>
-                              </Box>
-                            )}
-                          </Accordion.Panel>
-                        </Accordion.Item>
-                      </Accordion>
-                    </Box>
-                  )}
-
-                  {/* Single Calculate button lives in the right column footer */}
-                </Paper>
-              )
-            )}
+            <AddOnOptionsSection
+              steps123Complete={steps123Complete}
+              selectedSystemGroup={selectedSystemGroup}
+              addOnCategorySummaries={addOnCategorySummaries}
+              effectiveLaborAddOns={effectiveLaborAddOns}
+              sundriesEnabled={sundriesEnabled}
+              setSundriesEnabled={setSundriesEnabled}
+              addOnQuantities={addOnQuantities}
+              setAddOnQuantities={setAddOnQuantities}
+              laborRates={laborRates}
+              setLaborRates={setLaborRates}
+              customChargeLabel={customChargeLabel}
+              setCustomChargeLabel={setCustomChargeLabel}
+              crackJointFillers={crackJointFillers}
+              nonSkidAdditives={nonSkidAdditives}
+              commonlyUsedMaterials={commonlyUsedMaterials}
+              countertopIncidentals={countertopIncidentals}
+              mergedSuggestions={mergedSuggestions}
+              suggestionQty={suggestionQty}
+              setSuggestionQty={setSuggestionQty}
+              effectiveSqft={effectiveSqft}
+              resetLaborRatesToDefaults={resetLaborRatesToDefaults}
+              findAddOnByName={findAddOnByName}
+              toggleFav={toggleFav}
+              favSkus={favSkus}
+              getProductImageUrl={getProductImageUrl}
+              ThumbImg={ThumbImg}
+              LaborThumb={LaborThumb}
+              setCatalogOpen={setCatalogOpen}
+              handleCalculate={handleCalculate}
+              canCalculate={canCalculate}
+            />
           </div>
           {steps123Complete ? (
             <aside id="uc-addons" className="space-y-4">
@@ -7352,673 +4621,164 @@ export default function UniversalCalculator() {
           )}
         </section>
 
-        {/* Full-width Calculation Results below the split */}
-        {hasCalculated && (
-          <section id="uc-results" className="mt-6">
-            <Paper p="lg" withBorder>
-              <Stack gap="md">
-                <Group justify="space-between" align="center">
-                  <Text fw={600} size="lg" c="green">Calculation Results</Text>
-                </Group>
-                <Box p="md" bg="gray.0" style={{ borderRadius: 8, border: '1px solid #e5e7eb' }}>
-                  <Stack gap="xs">
-                    <Text fw={600} size="sm">Good / Better / Best</Text>
-                    <Text size="xs" c="dimmed">Choose a tier to adjust coat thickness and pricing. Better is the baseline.</Text>
-                    <div role="radiogroup" aria-label="Tier" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {(['good', 'better', 'best'] as const).map((tier) => {
-                        const title = tier === 'good' ? 'Good' : tier === 'better' ? 'Better' : 'Best';
-                        const selected = selectedTier === tier;
-                        return (
-                          <button
-                            key={tier}
-                            role="radio"
-                            aria-checked={selected}
-                            onClick={() => setSelectedTier(tier)}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 8,
-                              padding: '6px 10px', borderRadius: 8,
-                              border: `1px solid ${selected ? '#0ea5e9' : '#e5e7eb'}`,
-                              background: selected ? '#f0f9ff' : 'white'
-                            }}
-                          >
-                            <span style={{
-                              display: 'inline-block', width: 10, height: 10, borderRadius: '9999px',
-                              background: selected ? '#0369a1' : 'transparent', border: selected ? 'none' : '1px solid #9ca3af'
-                            }} />
-                            <span style={{ fontSize: 14, fontWeight: 600 }}>{title}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {/* Tier Card explainer */}
-                    <Box mt="sm" p="md" style={{ borderRadius: 8, border: '1px solid #e5e7eb', background: '#ffffff' }}>
-                      {selectedTier === 'good' && (
-                        <Stack gap={4}>
-                          <Text fw={700}>Good</Text>
-                          <Text size="sm" c="dimmed">Compact coating package for reliable, budget-friendly protection—best for single-car garages, basements, storage rooms, light retail back-of-house.</Text>
-                          <Text size="sm">Thickness: 10–15 mils · Cure: 24–48 hrs · Warranty: 2 years</Text>
-                          <Text size="sm">Pulls thinner than Better — uses less material and builds a thinner film.</Text>
-                          {affectedDefaultSpreads.length > 0 && (
-                            <Text size="xs" c="dimmed">Approx build vs Better: {buildDeltaPctSelectedTier.toFixed(0)}% (est.)</Text>
-                          )}
-                          <Text fw={600}>Price to homeowner: {fmtMoney(tierPricing.good.customerPrice)} • {fmtPpsf(tierPricing.good.pricePerSqFt)}</Text>
-                        </Stack>
-                      )}
-                      {selectedTier === 'better' && (
-                        <Stack gap={4}>
-                          <Text fw={700}>Better (baseline)</Text>
-                          <Text size="sm" c="dimmed">Premium blend tuned for stronger wear resistance and color hold—ideal for 2–3 car garages, showrooms, clinics, classrooms, busy hallways, restaurants.</Text>
-                          <Text size="sm">Thickness: 15–20 mils · Cure: 24–36 hrs · Warranty: 10 years</Text>
-                          <Text size="sm">Baseline uses the systems preset spread values for base/grout/extra/money coats. Balanced material usage and durability.</Text>
-                          <Text fw={600}>Price to homeowner: {fmtMoney(tierPricing.better.customerPrice)} • {fmtPpsf(tierPricing.better.pricePerSqFt)}</Text>
-                        </Stack>
-                      )}
-                      {selectedTier === 'best' && (
-                        <Stack gap={4}>
-                          <Text fw={700}>Best</Text>
-                          <Text size="sm" c="dimmed">Industrial-grade build for maximum longevity and abuse resistance—built for warehouses, factories, service bays, breweries, distribution centers, metallic feature floors.</Text>
-                          <Text size="sm">Thickness: 20–30 mils · Cure: 48–72 hrs · Warranty: 15 years</Text>
-                          <Text size="sm">Pulls heavier than Better — uses more material and builds a thicker film.</Text>
-                          {affectedDefaultSpreads.length > 0 && (
-                            <Text size="xs" c="dimmed">Approx build vs Better: {buildDeltaPctSelectedTier.toFixed(0)}% (est.)</Text>
-                          )}
-                          <Text fw={600}>Price to homeowner: {fmtMoney(tierPricing.best.customerPrice)} • {fmtPpsf(tierPricing.best.pricePerSqFt)}</Text>
-                        </Stack>
-                      )}
-                    </Box>
-                  </Stack>
-                </Box>
-                <Box>
-                  {displayLineItems.length > 0 ? (
-                    <div className="results-table-wrapper">
-                      <Table striped highlightOnHover withTableBorder withColumnBorders className="results-table">
-                        <Table.Thead>
-                          <Table.Tr>
-                            <Table.Th>Item</Table.Th>
-                            <Table.Th style={{ width: 160 }}>Qty</Table.Th>
-                            <Table.Th style={{ width: 140 }}>Unit Price</Table.Th>
-                            <Table.Th style={{ width: 140 }}>Total</Table.Th>
-                          </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                          {displayLineItems.map(item => {
-                            const prod = products.find(p => p.id.toString() === item.id);
-                            const effectiveQty = prod ? (resultQtyOverrides[item.id] ?? item.qty) : item.qty;
-                            const effectiveTotal = item.unitPrice * effectiveQty;
-                            return (
-                              <Table.Tr key={item.id}>
-                                <Table.Td>
-                                  <Group gap="sm" align="center">
-                                    {prod && prod.image_url ? (
-                                      <ThumbImg src={getProductImageUrl(prod.image_url)} size={32} />
-                                    ) : (
-                                      <LaborThumb id={item.id} />
-                                    )}
-                                    <div>
-                                      <Text size="sm" fw={500}>{item.name}</Text>
-                                      {selectedTier !== 'better' && affectedSelectedMap.has(item.id) && (
-                                        (() => {
-                                          const sel = affectedSelectedMap.get(item.id)!;
-                                          const base = affectedBetterMap.get(item.id);
-                                          const changed = !base || base.qty !== sel.qty;
-                                          if (!changed) return null;
-                                          return (
-                                            <Badge size="xs" variant="light" color="teal" title={`Better: ${base ? base.qty : 0} ${base?.unit || ''} → ${sel.qty} ${sel.unit || ''}`}>
-                                              Changed by tier
-                                            </Badge>
-                                          );
-                                        })()
-                                      )}
-                                      {prod?.technical_data_sheet_url && (
-                                        <Text size="xs"><a href={prod.technical_data_sheet_url} target="_blank" rel="noreferrer">View TDS</a></Text>
-                                      )}
-                                    </div>
-                                  </Group>
-                                </Table.Td>
-                                <Table.Td>
-                                  {prod ? (
-                                    <Group gap={6} align="center">
-                                      <NumberInput
-                                        size="xs"
-                                        w={110}
-                                        min={0}
-                                        value={effectiveQty}
-                                        onChange={(v) => setResultQtyOverrides(prev => ({ ...prev, [item.id]: Number(v) || 0 }))}
-                                      />
-                                      {item.unit && <Badge variant="light" size="xs" color="gray">{item.unit}</Badge>}
-                                    </Group>
-                                  ) : (
-                                    <Text size="sm">
-                                      {item.qty}{item.unit ? ` ${item.unit}` : ''}
-                                    </Text>
-                                  )}
-                                </Table.Td>
-                                <Table.Td><Text size="sm">{fmtMoney(item.unitPrice)}</Text></Table.Td>
-                                <Table.Td><Text size="sm" fw={600}>{fmtMoney(effectiveTotal)}</Text></Table.Td>
-                              </Table.Tr>
-                            );
-                          })}
-                        </Table.Tbody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <Text size="sm" c="dimmed">No items selected yet. Choose system components to see a detailed list here.</Text>
-                  )}
-                </Box>
+        <CalculationResultsSection
+          hasCalculated={hasCalculated}
+          selectedTier={selectedTier}
+          setSelectedTier={setSelectedTier}
+          affectedDefaultSpreads={affectedDefaultSpreads}
+          buildDeltaPctSelectedTier={buildDeltaPctSelectedTier}
+          tierPricing={tierPricing}
+          fmtMoney={fmtMoney}
+          fmtPpsf={fmtPpsf}
+          displayLineItems={displayLineItems}
+          products={products}
+          getProductImageUrl={getProductImageUrl}
+          resultQtyOverrides={resultQtyOverrides}
+          setResultQtyOverrides={setResultQtyOverrides}
+          affectedSelectedMap={affectedSelectedMap}
+          affectedBetterMap={affectedBetterMap}
+          ThumbImg={ThumbImg}
+          LaborThumb={LaborThumb}
+          effectiveSqft={effectiveSqft}
+          laborRate={laborRate}
+          totalLaborHours={totalLaborHours}
+          getMaterialCost={getMaterialCost}
+          calculateLaborCost={calculateLaborCost}
+          calculateTotalCost={calculateTotalCost}
+          calculateRequiredRevenue={calculateRequiredRevenue}
+          calculatePricePerSqft={calculatePricePerSqft}
+          calculateAchievedMargin={calculateAchievedMargin}
+          handleCreateEstimate={handleCreateEstimate}
+          editingBidId={editingBidId}
+          setPendingOrderSheet={setPendingOrderSheet}
+          setLocation={setLocation}
+          saveBidModalOpen={saveBidModalOpen}
+          setSaveBidModalOpen={setSaveBidModalOpen}
+          submitAttempted={submitAttempted}
+          setSubmitAttempted={setSubmitAttempted}
+          bidName={bidName}
+          setBidName={setBidName}
+          bidDescription={bidDescription}
+          setBidDescription={setBidDescription}
+          selectedClientId={selectedClientId}
+          setSelectedClientId={setSelectedClientId}
+          selectedClientName={selectedClientName}
+          setSelectedClientName={setSelectedClientName}
+          isSavingBid={isSavingBid}
+          setIsSavingBid={setIsSavingBid}
+          pendingOrderSheet={pendingOrderSheet}
+          buildBidSnapshot={buildBidSnapshot}
+          snapshotToItems={snapshotToItems}
+          pricingOutput={pricingOutput}
+          draft={draft}
+          toDraftPricingMethod={toDraftPricingMethod}
+          pricingMethod={pricingMethod}
+          selectedSystemGroup={selectedSystemGroup}
+          selectedSystem={selectedSystem}
+          selectedManufacturer={selectedManufacturer}
+          selectedManufacturerName={selectedManufacturerName}
+          apiManufacturers={apiManufacturers}
+          selectedSurfaceHardness={selectedSurfaceHardness}
+          profitMargin={profitMargin}
+          targetPpsf={targetPpsf}
+          hasCalculatedState={hasCalculated}
+          systemComponentSelections={{
+            selectedBasePigment,
+            selectedBaseCoat,
+            selectedFlakeColor,
+            selectedTopCoat,
+            selectedMVBBasePigment,
+            selectedMVBBaseCoat,
+            selectedMVBFlakeColor,
+            selectedMVBTopCoat,
+            selectedSolidBasePigment,
+            selectedSolidGroutCoat,
+            selectedSolidBaseCoat,
+            selectedSolidExtraBaseCoat,
+            selectedSolidTopCoat,
+            selectedMetallicBasePigment,
+            selectedMetallicGroutCoat,
+            selectedMetallicBaseCoat,
+            selectedMetallicMoneyCoat,
+            selectedMetallicPigments,
+            selectedMetallicTopCoat,
+            selectedGrindSealPrimer,
+            selectedGrindSealGroutCoat,
+            selectedGrindSealBaseCoat,
+            selectedGrindSealIntermediateCoat,
+            selectedGrindSealTopCoat,
+            selectedGrindSealAdditionalTopCoat,
+            selectedCountertopPrimer,
+            selectedCountertopBasePigment,
+            selectedCountertopMetallicArtCoat,
+            selectedCountertopMetallicPigments,
+            selectedCountertopFloodCoat,
+            selectedCountertopTopCoat,
+          }}
+          spreadRates={{
+            noMVBBasePigmentSpreadRate,
+            noMVBBaseCoatSpreadRate,
+            noMVBFlakeColorSpreadRate,
+            noMVBTopCoatSpreadRate,
+            mvbBasePigmentSpreadRate,
+            mvbBaseCoatSpreadRate,
+            mvbFlakeColorSpreadRate,
+            mvbTopCoatSpreadRate,
+            solidBasePigmentSpreadRate,
+            solidGroutCoatSpreadRate,
+            solidBaseCoatSpreadRate,
+            solidExtraBaseCoatSpreadRate,
+            solidTopCoatSpreadRate,
+            metallicBasePigmentSpreadRate,
+            metallicGroutCoatSpreadRate,
+            metallicBaseCoatSpreadRate,
+            metallicMoneyCoatSpreadRate,
+            metallicTopCoatSpreadRate,
+            grindSealGroutSpreadRate,
+            grindSealBaseSpreadRate,
+            grindSealIntermediateCoatSpreadRate,
+            countertopBaseCoatSpreadRate,
+            countertopMetallicArtCoatSpreadRate,
+            countertopClearCoatSpreadRate,
+            countertopMetallicPigmentSpreadRate,
+          }}
+          addOnQuantities={addOnQuantities}
+          customMaterialPrices={customMaterialPrices}
+          laborRates={laborRates}
+          sundriesEnabled={sundriesEnabled}
+          suggestionCycle={suggestionCycle}
+          customChargeLabel={customChargeLabel}
+          countertopConfig={{
+            countertopMode,
+            countertopPieces,
+            countertopDirectSurface,
+            countertopDirectEdge,
+            countertopDirectBacksplash,
+          }}
+          dimensions={dimensions}
+          totalSqft={totalSqft}
+          apiPost={apiPost}
+          apiPut={apiPut}
+          buildSavedBidPayload={buildSavedBidPayload}
+        />
 
-                <Grid gutter="md">
-                  <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Box p="md" bg="blue.0" style={{ borderRadius: '6px' }}>
-                      <Text fw={600} size="lg" c="blue" mb="xs">{fmtMoney(calculateRequiredRevenue())}</Text>
-                      <Text size="sm">Total Customer Price</Text>
-                    </Box>
-                    <Stack gap="xs" mt="sm">
-                      <Group justify="space-between"><Text size="sm">Material Cost:</Text><Text size="sm" fw={500}>{fmtMoney(getMaterialCost())}</Text></Group>
-                      <Group justify="space-between"><Text size="sm">Labor Cost:</Text><Text size="sm" fw={500}>{fmtMoney(calculateLaborCost())}</Text></Group>
-                      <Group justify="space-between"><Text size="sm">Total Cost:</Text><Text size="sm" fw={500}>{fmtMoney(calculateTotalCost())}</Text></Group>
-                      <Divider />
-                      <Group justify="space-between"><Text size="sm" fw={600}>Profit:</Text><Text size="sm" fw={600} c="green">{fmtMoney(calculateRequiredRevenue() - calculateTotalCost())}</Text></Group>
-                    </Stack>
-                  </Grid.Col>
-                  <Grid.Col span={{ base: 12, md: 6 }}>
-                    <Box p="md" bg="orange.0" style={{ borderRadius: '6px' }}>
-                      <Text fw={600} size="lg" c="orange" mb="xs">{fmtPpsf(calculatePricePerSqft())}</Text>
-                      <Text size="sm">Price per Square Foot</Text>
-                    </Box>
-                    <Stack gap="xs" mt="sm">
-                      <Group justify="space-between"><Text size="sm">Coverage Area:</Text><Text size="sm" fw={500}>{effectiveSqft.toFixed(1)} sq ft</Text></Group>
-                      <Group justify="space-between"><Text size="sm">Profit Margin:</Text><Text size="sm" fw={500}>{calculateAchievedMargin().toFixed(1)}%</Text></Group>
-                      <Group justify="space-between"><Text size="sm">Labor Rate:</Text><Text size="sm" fw={500}>${laborRate}/hr</Text></Group>
-                      <Group justify="space-between"><Text size="sm">Labor Hours:</Text><Text size="sm" fw={500}>{totalLaborHours}</Text></Group>
-                    </Stack>
-                  </Grid.Col>
-                </Grid>
-
-                <Group justify="center" mt="xs" className="sticky-actions">
-                  <Button size="lg" onClick={() => { setSaveBidModalOpen(true); }}>Save Bid</Button>
-                  <Button size="lg" variant="outline" onClick={handleCreateEstimate}>
-                    Create Estimate
-                  </Button>
-                  <Button size="lg" variant="outline" onClick={() => {
-                    if (editingBidId) {
-                      // Already saved, navigate directly with savedBidId
-                      setLocation(`/order-requests/new?source=universal-calculator&savedBidId=${editingBidId}`);
-                    } else {
-                      // Not saved yet, prompt to save first
-                      setPendingOrderSheet(true);
-                      setSaveBidModalOpen(true);
-                    }
-                  }}>Material Order Request</Button>
-                  <Button size="lg" variant="outline" onClick={() => {
-                    setLocation('/pnl-statement');
-                  }}>P&L Statement</Button>
-                  {/* Reset moved to top sticky bar */}
-                </Group>
-                {/* Save/Update Bid Modal */}
-                <Modal opened={saveBidModalOpen} onClose={() => {
-                  setSaveBidModalOpen(false);
-                  setSubmitAttempted(false);
-                }} title={editingBidId ? 'Update Bid' : 'Save Bid'} size="lg">
-                  <Stack gap="sm">
-                    <TextInput
-                      label="Bid Name"
-                      placeholder="e.g. Garage Floor Coating Project"
-                      value={bidName}
-                      onChange={(e) => setBidName(e.currentTarget.value)}
-                      required
-                      error={submitAttempted && !bidName.trim() ? 'Bid name is required' : undefined}
-                    />
-                    <Textarea
-                      label="Description"
-                      placeholder="Optional description for this bid"
-                      value={bidDescription}
-                      onChange={(e) => setBidDescription(e.currentTarget.value)}
-                      minRows={2}
-                    />
-
-                    <Divider label="Client Selection" labelPosition="left" />
-
-                    {selectedClientId && selectedClientName ? (
-                      <Paper p="md" withBorder style={{ backgroundColor: '#f8f9fa' }}>
-                        <Group justify="space-between" align="center">
-                          <div>
-                            <Text size="sm" fw={500}>Selected Client:</Text>
-                            <Text size="lg" fw={600}>{selectedClientName}</Text>
-                          </div>
-                          <Button
-                            size="xs"
-                            variant="light"
-                            color="red"
-                            onClick={() => {
-                              setSelectedClientId(null);
-                              setSelectedClientName('');
-                            }}
-                          >
-                            Change
-                          </Button>
-                        </Group>
-                      </Paper>
-                    ) : (
-                      <Paper p="md" withBorder style={{ backgroundColor: '#fff3cd', borderColor: '#ffc107' }}>
-                        <Text size="sm" c="dimmed" mb="sm">No client selected. Please select or create a client.</Text>
-                        <Group>
-                          <Button
-                            variant="light"
-                            onClick={() => setPickContactOpen(true)}
-                          >
-                            Select Existing Client
-                          </Button>
-                          <Button
-                            variant="light"
-                            onClick={() => setCreateClientModalOpen(true)}
-                          >
-                            Create New Client
-                          </Button>
-                        </Group>
-                      </Paper>
-                    )}
-
-                    {submitAttempted && !selectedClientId && (
-                      <Text size="xs" c="red" mt={-8}>Client selection is required to save bid</Text>
-                    )}
-
-                    <Group justify="flex-end" mt="md">
-                      <Button variant="subtle" onClick={() => {
-                        setSaveBidModalOpen(false);
-                        setSubmitAttempted(false);
-                      }}>Cancel</Button>
-                      <Button loading={isSavingBid} disabled={isSavingBid} onClick={async () => {
-                        if (isSavingBid) return; // Prevent duplicate submissions
-                        
-                        setSubmitAttempted(true);
-                        const snap = buildBidSnapshot();
-                        if (!snap) {
-                          notifications.show({ title: 'Nothing to save', message: 'Run a calculation first.', color: 'orange' });
-                          return;
-                        }
-                        if (!bidName || !bidName.trim()) {
-                          notifications.show({ title: 'Bid Name Required', message: 'Please enter a bid name to save.', color: 'red' });
-                          return;
-                        }
-                        if (!selectedClientId) {
-                          notifications.show({ title: 'Client Required', message: 'Please select or create a client to save bid.', color: 'red' });
-                          return;
-                        }
-
-                        setIsSavingBid(true);
-                        try {
-                          // Build comprehensive system components object
-                          const systemComponents: Record<string, any> = {
-                            basePigment: selectedBasePigment || null,
-                            baseCoat: selectedBaseCoat || null,
-                            flakeColor: selectedFlakeColor || null,
-                            topCoat: selectedTopCoat || null,
-                            mvbBasePigment: selectedMVBBasePigment || null,
-                            mvbBaseCoat: selectedMVBBaseCoat || null,
-                            mvbFlakeColor: selectedMVBFlakeColor || null,
-                            mvbTopCoat: selectedMVBTopCoat || null,
-                            solidBasePigment: selectedSolidBasePigment || null,
-                            solidGroutCoat: selectedSolidGroutCoat || null,
-                            solidBaseCoat: selectedSolidBaseCoat || null,
-                            solidExtraBaseCoat: selectedSolidExtraBaseCoat || null,
-                            solidTopCoat: selectedSolidTopCoat || null,
-                            metallicBasePigment: selectedMetallicBasePigment || null,
-                            metallicGroutCoat: selectedMetallicGroutCoat || null,
-                            metallicBaseCoat: selectedMetallicBaseCoat || null,
-                            metallicMoneyCoat: selectedMetallicMoneyCoat || null,
-                            metallicPigments: selectedMetallicPigments || [],
-                            metallicTopCoat: selectedMetallicTopCoat || null,
-                            grindSealPrimer: selectedGrindSealPrimer || null,
-                            grindSealGroutCoat: selectedGrindSealGroutCoat || null,
-                            grindSealBaseCoat: selectedGrindSealBaseCoat || null,
-                            grindSealIntermediateCoat: selectedGrindSealIntermediateCoat || null,
-                            grindSealTopCoat: selectedGrindSealTopCoat || null,
-                            grindSealAdditionalTopCoat: selectedGrindSealAdditionalTopCoat || null,
-                            countertopPrimer: selectedCountertopPrimer || null,
-                            countertopBasePigment: selectedCountertopBasePigment || null,
-                            countertopMetallicArtCoat: selectedCountertopMetallicArtCoat || null,
-                            countertopMetallicPigments: selectedCountertopMetallicPigments || [],
-                            countertopFloodCoat: selectedCountertopFloodCoat || null,
-                            countertopTopCoat: selectedCountertopTopCoat || null,
-                          };
-
-                          // Build spread rate overrides
-                          const spreadRateOverrides: Record<string, number> = {
-                            noMVBBasePigment: noMVBBasePigmentSpreadRate,
-                            noMVBBaseCoat: noMVBBaseCoatSpreadRate,
-                            noMVBFlakeColor: noMVBFlakeColorSpreadRate,
-                            noMVBTopCoat: noMVBTopCoatSpreadRate,
-                            mvbBasePigment: mvbBasePigmentSpreadRate,
-                            mvbBaseCoat: mvbBaseCoatSpreadRate,
-                            mvbFlakeColor: mvbFlakeColorSpreadRate,
-                            mvbTopCoat: mvbTopCoatSpreadRate,
-                            solidBasePigment: solidBasePigmentSpreadRate,
-                            solidGroutCoat: solidGroutCoatSpreadRate,
-                            solidBaseCoat: solidBaseCoatSpreadRate,
-                            solidExtraBaseCoat: solidExtraBaseCoatSpreadRate,
-                            solidTopCoat: solidTopCoatSpreadRate,
-                            metallicBasePigment: metallicBasePigmentSpreadRate,
-                            metallicGroutCoat: metallicGroutCoatSpreadRate,
-                            metallicBaseCoat: metallicBaseCoatSpreadRate,
-                            metallicMoneyCoat: metallicMoneyCoatSpreadRate,
-                            metallicTopCoat: metallicTopCoatSpreadRate,
-                            grindSealGrout: grindSealGroutSpreadRate,
-                            grindSealBase: grindSealBaseSpreadRate,
-                            grindSealIntermediateCoat: grindSealIntermediateCoatSpreadRate,
-                            countertopBaseCoat: countertopBaseCoatSpreadRate,
-                            countertopMetallicArtCoat: countertopMetallicArtCoatSpreadRate,
-                            countertopClearCoat: countertopClearCoatSpreadRate,
-                            countertopMetallicPigment: countertopMetallicPigmentSpreadRate,
-                          };
-
-                          // Build UI state
-                          const uiState = {
-                            selectedManufacturer,
-                            selectedSystemGroup,
-                            selectedSystem,
-                            totalSqft,
-                            dimensions,
-                            selectedSurfaceHardness,
-                            pricingMethod,
-                            profitMargin,
-                            laborRate,
-                            totalLaborHours,
-                            targetPpsf,
-                            resultQtyOverrides,
-                            selectedTier,
-                            hasCalculated,
-                          };
-
-                          // Build totals by tier
-                          const totalsByTier = {
-                            good: { customerPrice: tierPricing.good.customerPrice, ppsf: tierPricing.good.pricePerSqFt },
-                            better: { customerPrice: tierPricing.better.customerPrice, ppsf: tierPricing.better.pricePerSqFt },
-                            best: { customerPrice: tierPricing.best.customerPrice, ppsf: tierPricing.best.pricePerSqFt },
-                          };
-
-                          const items = snapshotToItems(snap);
-                          const totals = {
-                            materialCost: Number(pricingOutput.materialCost ?? getMaterialCost()),
-                            laborCost: calculateLaborCost(),
-                            totalCost: calculateTotalCost(),
-                            customerPrice: calculateRequiredRevenue(),
-                            ppsf: calculatePricePerSqft(),
-                            byTier: totalsByTier,
-                          };
-
-                          // Get numeric manufacturer_id from apiManufacturers by matching manufacturer name (backend needs this for material orders)
-                          const manufacturerId = apiManufacturers.find(
-                            m => m.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === selectedManufacturer
-                          )?.id || null;
-
-                          // Capitalize surface hardness for backend validation (expects 'Soft', 'Medium', 'Hard', not lowercase)
-                          const capitalizeSurfaceHardness = (value: string | null): string | null => {
-                            if (!value) return null;
-                            if (value === 'soft') return 'Soft';
-                            if (value === 'medium') return 'Medium';
-                            if (value === 'hard') return 'Hard';
-                            if (value === 'very-hard') return 'Hard'; // Backend doesn't support 'Very Hard', map to 'Hard'
-                            return value;
-                          };
-
-                          // Build items directly from snapshot (like QuickQuote) to preserve manufacturer info
-                          const savedBidItems = (snap.lineItems || []).map((li) => {
-                            const productId = li.id ? parseInt(li.id, 10) : null;
-
-                            return {
-                              product_id: productId || null,
-                              item_type: 'product' as const,
-                              item_name: li.name || '',
-                              item_sku: li.sku || li.id || null,
-                              quantity: li.qty || 0,
-                              unit: li.unit || 'ea',
-                              unit_price: li.unitPrice || 0,
-                              total_price: li.total || (li.qty || 0) * (li.unitPrice || 0),
-                              product_name: li.name || null,
-                              product_category: null,
-                              product_manufacturer: li.manufacturer || null, // Use actual product manufacturer from snapshot
-                              product_image_url: li.imageUrl || null,
-                              product_tds_url: li.tdsUrl || null,
-                              component_key: undefined,
-                              is_system_material: false,
-                              is_add_on: false,
-                              is_labor: false,
-                              notes: null,
-                            };
-                          });
-
-                          const draftPayload = {
-                            ...draft,
-                            items,
-                            totals,
-                            pricingMethod: toDraftPricingMethod(pricingMethod),
-                            coverageAreaSqFt: Number(effectiveSqft) || 0,
-                            systemGroup: selectedSystemGroup,
-                            systemType: selectedSystem,
-                            client: selectedClientId ? { id: parseInt(String(selectedClientId), 10) } : null,
-                            manufacturerId: manufacturerId,
-                            surfaceHardness: capitalizeSurfaceHardness(selectedSurfaceHardness),
-                          };
-
-                          // Format custom pieces for countertops to match backend schema
-                          const customPieces = countertopMode === 'pieces' && countertopPieces.length > 0 ? {
-                            mode: 'build_by_pieces' as const,
-                            pieces: countertopPieces.map(p => ({
-                              name: p.name,
-                              surface: [p.length, p.width],
-                              edge: [p.edgeHeight, p.edgeWidth],
-                              backsplash: [p.backsplashHeight, p.backsplashWidth],
-                            }))
-                          } : countertopMode === 'totals' ? {
-                            mode: 'total' as const,
-                            piece: {
-                              surface: countertopDirectSurface || 0,
-                              edge: countertopDirectEdge || 0,
-                              backsplash: countertopDirectBacksplash || 0,
-                            }
-                          } : null;
-
-                          const payload = buildSavedBidPayload(draftPayload as any, {
-                            bidName,
-                            bidDescription,
-                            manufacturerName: selectedManufacturerName,
-                            systemComponents,
-                            spreadRateOverrides,
-                            resultQtyOverrides,
-                            addOnQuantities,
-                            customMaterialPrices,
-                            laborRates,
-                            uiState,
-                            dimensions,
-                            selectedTier,
-                            totalsByTier,
-                            customPieces,
-                            sundriesEnabled,
-                            suggestionCycle,
-                            customChargeLabel,
-                          });
-
-                          // Override items in payload with properly formatted items from snapshot
-                          payload.items = savedBidItems;
-
-                          if (editingBidId) {
-                            // Update existing bid
-                            await apiPut(`/api/saved-bids/${editingBidId}`, payload);
-                            notifications.show({ title: 'Bid Updated', message: 'Your bid has been updated successfully.', color: 'green' });
-                          } else {
-                            // Create new bid
-                            const res = await apiPost<{ id: string }>(`/api/saved-bids/`, payload);
-                            notifications.show({ title: 'Bid Saved', message: 'Your bid has been saved successfully.', color: 'green' });
-
-                            // Navigate to order sheet if pending, otherwise to saved bids
-                            if (pendingOrderSheet) {
-                              setPendingOrderSheet(false);
-                              setLocation(`/order-requests/new?source=universal-calculator&savedBidId=${res.id}`);
-                            } else {
-                              setLocation('/saved-bids');
-                            }
-                          }
-                          setSaveBidModalOpen(false);
-                          setSubmitAttempted(false);
-                          if (!editingBidId) {
-                            setBidName('');
-                            setBidDescription('');
-                            setSelectedClientId(null);
-                            setSelectedClientName('');
-                          }
-                        } catch (error: any) {
-                          console.error('Failed to save bid:', error);
-                          notifications.show({ title: 'Save Failed', message: error?.message || 'Unable to save bid.', color: 'red' });
-                        } finally {
-                          setIsSavingBid(false);
-                        }
-                      }}>{editingBidId ? 'Update Bid' : 'Save Bid'}</Button>
-                    </Group>
-                  </Stack>
-                </Modal>
-                <SelectContactModal
-                  opened={pickContactOpen}
-                  onClose={() => setPickContactOpen(false)}
-                  onSelected={(c) => {
-                    setSelectedClientId(c.id);
-                    setSelectedClientName(`${c.first_name} ${c.last_name}`.trim() || c.company_name || '');
-                    setPickContactOpen(false);
-                    setSubmitAttempted(false); // Clear error state when client is selected
-                    notifications.show({ title: 'Client Selected', message: 'Client applied to bid.', color: 'green' });
-                  }}
-                />
-                <AddContactModal
-                  opened={createClientModalOpen}
-                  onClose={() => setCreateClientModalOpen(false)}
-                  onSuccess={async () => {
-                    setCreateClientModalOpen(false);
-                    setSubmitAttempted(false); // Clear error state
-                    notifications.show({
-                      title: 'Client Created',
-                      message: 'Client created successfully. Please select it from existing clients.',
-                      color: 'green'
-                    });
-                    // Optionally open the select modal
-                    setPickContactOpen(true);
-                  }}
-                />
-              </Stack>
-            </Paper>
-          </section>
-        )}
-
-        {/* Additional Sections - Show after calculation */}
-        {hasCalculated && (
-          <Stack gap="xl" mt="xl">
-            {/* System Components Details */}
-            <Paper p="lg" withBorder>
-              <Title order={3} mb="md" c="blue">System Components</Title>
-              <Text size="sm" c="dimmed" mb="lg">
-                Selected products for each component in your {selectedSystemGroup} system
-              </Text>
-
-              <Grid gutter="md">
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                  <Stack gap="sm">
-                    <Text fw={500} size="sm">Selected Components:</Text>
-                    {/* Good/Better/Best moved under Calculation Results */}
-                    {selectedSystemGroup === 'flooring' && selectedSystem === 'metallic-system' && (
-                      <Stack gap="xs">
-                        {selectedMetallicBasePigment && (
-                          <Group justify="space-between">
-                            <Text size="sm">Base Pigment:</Text>
-                            <Text size="sm" fw={500}>{products.find(p => p.id.toString() === selectedMetallicBasePigment)?.name || 'Selected'}</Text>
-                          </Group>
-                        )}
-                        {selectedMetallicBaseCoat && (
-                          <Group justify="space-between">
-                            <Text size="sm">Base Coat:</Text>
-                            <Text size="sm" fw={500}>{products.find(p => p.id.toString() === selectedMetallicBaseCoat)?.name || 'Selected'}</Text>
-                          </Group>
-                        )}
-                        {selectedMetallicPigments.length > 0 && (
-                          <div>
-                            <Text size="sm" mb="xs">Metallic Pigments:</Text>
-                            {selectedMetallicPigments.map((pigment, idx) => (
-                              <Group justify="space-between" key={idx} pl="sm">
-                                <Text size="xs">{pigment.name}</Text>
-                                <Text size="xs" fw={500}>Qty: {pigment.quantity}</Text>
-                              </Group>
-                            ))}
-                          </div>
-                        )}
-                        {selectedMetallicTopCoat && (
-                          <Group justify="space-between">
-                            <Text size="sm">Top Coat:</Text>
-                            <Text size="sm" fw={500}>{products.find(p => p.id.toString() === selectedMetallicTopCoat)?.name || 'Selected'}</Text>
-                          </Group>
-                        )}
-                      </Stack>
-                    )}
-
-                    {selectedSystemGroup === 'countertops-custom' && (
-                      <Stack gap="xs">
-                        {selectedCountertopPrimer && (
-                          <Group justify="space-between">
-                            <Text size="sm">Primer:</Text>
-                            <Text size="sm" fw={500}>{products.find(p => p.id.toString() === selectedCountertopPrimer)?.name || 'Selected'}</Text>
-                          </Group>
-                        )}
-                        {selectedCountertopMetallicArtCoat && (
-                          <Group justify="space-between">
-                            <Text size="sm">Metallic Art Coat:</Text>
-                            <Text size="sm" fw={500}>{products.find(p => p.id.toString() === selectedCountertopMetallicArtCoat)?.name || 'Selected'}</Text>
-                          </Group>
-                        )}
-                        {selectedCountertopMetallicPigments.length > 0 && (
-                          <div>
-                            <Text size="sm" mb="xs">Metallic Pigments:</Text>
-                            {selectedCountertopMetallicPigments.map((pigment, idx) => (
-                              <Group justify="space-between" key={idx} pl="sm">
-                                <Text size="xs">{pigment.name}</Text>
-                                <Text size="xs" fw={500}>Qty: {pigment.quantity}</Text>
-                              </Group>
-                            ))}
-                          </div>
-                        )}
-                        {selectedCountertopTopCoat && (
-                          <Group justify="space-between">
-                            <Text size="sm">Top Coat:</Text>
-                            <Text size="sm" fw={500}>{products.find(p => p.id.toString() === selectedCountertopTopCoat)?.name || 'Selected'}</Text>
-                          </Group>
-                        )}
-                      </Stack>
-                    )}
-                  </Stack>
-                </Grid.Col>
-
-                <Grid.Col span={{ base: 12, md: 6 }}>
-                  <Stack gap="sm">
-                    <Text fw={500} size="sm">Material Requirements:</Text>
-                    <Box p="md" bg="gray.0" style={{ borderRadius: '6px' }}>
-                      <Stack gap="xs">
-                        <Group justify="space-between">
-                          <Text size="sm">Coverage Area:</Text>
-                          <Text size="sm" fw={500}>{effectiveSqft.toFixed(1)} sq ft</Text>
-                        </Group>
-                        <Group justify="space-between">
-                          <Text size="sm">System Type:</Text>
-                          <Text size="sm" fw={500}>{selectedSystem?.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}</Text>
-                        </Group>
-                        <Group justify="space-between">
-                          <Text size="sm">Manufacturer:</Text>
-                          <Text size="sm" fw={500}>{availableManufacturers.find(m => m.id === selectedManufacturer)?.name}</Text>
-                        </Group>
-                      </Stack>
-                    </Box>
-                  </Stack>
-                </Grid.Col>
-              </Grid>
-            </Paper>
-
-            {/* (Removed old Add-on and Calculation Results here since shown above) */}
-          </Stack>
-        )}
+        <PostCalculationDetails
+          hasCalculated={hasCalculated}
+          selectedSystemGroup={selectedSystemGroup}
+          selectedSystem={selectedSystem}
+          products={products}
+          selectedMetallicBasePigment={selectedMetallicBasePigment}
+          selectedMetallicBaseCoat={selectedMetallicBaseCoat}
+          selectedMetallicPigments={selectedMetallicPigments}
+          selectedMetallicTopCoat={selectedMetallicTopCoat}
+          selectedCountertopPrimer={selectedCountertopPrimer}
+          selectedCountertopMetallicArtCoat={selectedCountertopMetallicArtCoat}
+          selectedCountertopMetallicPigments={selectedCountertopMetallicPigments}
+          selectedCountertopTopCoat={selectedCountertopTopCoat}
+          effectiveSqft={effectiveSqft}
+          availableManufacturers={availableManufacturers}
+          selectedManufacturer={selectedManufacturer}
+        />
 
       </Container>
 

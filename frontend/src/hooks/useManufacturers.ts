@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { dummyManufacturers } from '../data/dummyData';
+import { apiGet } from '../lib/api';
 
 export interface Manufacturer {
   id: number;
@@ -9,8 +9,11 @@ export interface Manufacturer {
 
 export function useMyManufacturers() {
   return useQuery({
-    queryKey: ['manufacturers', 'dummy'],
-    queryFn: (): Manufacturer[] => dummyManufacturers,
+    queryKey: ['manufacturers'],
+    queryFn: async (): Promise<Manufacturer[]> => {
+      const data = await apiGet<Manufacturer[]>('/api/manufacturers/');
+      return data ?? [];
+    },
     staleTime: Infinity,
   });
 }
