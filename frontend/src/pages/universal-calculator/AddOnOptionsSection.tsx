@@ -62,6 +62,7 @@ export type AddOnOptionsSectionProps = Readonly<{
   setSuggestionQty: (updater: (prev: Record<string, number>) => Record<string, number>) => void;
   effectiveSqft: number;
   resetLaborRatesToDefaults: () => void;
+  resetCountertopMaterialPrices: () => void;
   findAddOnByName: (name: string) => { image?: string } | undefined;
   toggleFav: (sku: string) => void;
   favSkus: string[];
@@ -96,6 +97,7 @@ export function AddOnOptionsSection(props: AddOnOptionsSectionProps) {
     setSuggestionQty,
     effectiveSqft,
     resetLaborRatesToDefaults,
+    resetCountertopMaterialPrices,
     findAddOnByName,
     toggleFav,
     favSkus,
@@ -734,6 +736,16 @@ export function AddOnOptionsSection(props: AddOnOptionsSectionProps) {
               </Group>
             </Accordion.Control>
             <Accordion.Panel>
+              {selectedSystemGroup === 'countertops-custom' && (
+                <Group justify="space-between" mb="xs">
+                  <Text size="xs" c="dimmed">
+                    Countertop material prices can be customized per job. Reset to use catalog/default pricing.
+                  </Text>
+                  <Button size="xs" variant="light" onClick={resetCountertopMaterialPrices}>
+                    Reset countertop prices
+                  </Button>
+                </Group>
+              )}
               <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
                 {[...commonlyUsedMaterials, ...countertopIncidentals].map((item) => (
                   <Box

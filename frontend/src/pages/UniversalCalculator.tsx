@@ -2152,6 +2152,7 @@ export default function UniversalCalculator() {
               setSuggestionQty={setSuggestionQty}
               effectiveSqft={effectiveSqft}
               resetLaborRatesToDefaults={resetLaborRatesToDefaults}
+              resetCountertopMaterialPrices={resetCountertopMaterialPrices}
               findAddOnByName={findAddOnByName}
               toggleFav={toggleFav}
               favSkus={favSkus}
