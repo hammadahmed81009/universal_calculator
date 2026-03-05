@@ -121,6 +121,7 @@ export default function UniversalCalculator() {
   const [catalogCategory, setCatalogCategory] = useState<string | null>(null);
   const [catalogManu, setCatalogManu] = useState<string | null>(null);
   const [catalogLimit, setCatalogLimit] = useState<number>(24);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState<boolean>(false);
 
   // Estimate modal state
   const [estimateModalOpen, setEstimateModalOpen] = useState<boolean>(false);
@@ -3169,42 +3170,72 @@ export default function UniversalCalculator() {
   const affectedSelectedMap = useMemo(() => new Map(affectedSelectedTierItems.map(i => [i.id, i])), [affectedSelectedTierItems]);
   const affectedBetterMap = useMemo(() => new Map(affectedBetterTierItems.map(i => [i.id, i])), [affectedBetterTierItems]);
 
+  const handleConfirmReset = () => {
+    try {
+      localStorage.removeItem('uc.lastSnapshot');
+      localStorage.removeItem('calculatorDraft.v1');
+    } catch { }
+    setSelectedManufacturer('');
+    setSelectedSystemGroup('');
+    setSelectedSystem('');
+    setSelectedSurfaceHardness('');
+    setTotalSqft(0);
+    setDimensions({ length: 0, width: 0 });
+    setPricingMethod('MARGIN_BASED');
+    setProfitMargin(50);
+    setLaborRate(55);
+    setTotalLaborHours(0);
+    setHasCalculated(false);
+    setResultQtyOverrides({});
+    setTargetPpsf(0);
+    setCatalogOpen(false);
+    setCatalogQuery('');
+    setCatalogCategory(null);
+    setCatalogManu(null);
+    setCatalogLimit(24);
+    calculatorDraftActions.reset('userReset');
+    notifications.show({ title: 'Reset Complete', message: 'Universal Calculator restored to defaults.', color: 'green' });
+    window.history.replaceState({}, document.title, '/');
+    setResetConfirmOpen(false);
+  };
+
   return (
     <AppLayout>
+      <Modal
+        opened={resetConfirmOpen}
+        onClose={() => setResetConfirmOpen(false)}
+        title="Reset Universal Calculator?"
+        centered
+      >
+        <Stack gap="sm">
+          <Text size="sm">
+            This will clear your local calculator draft, snapshot state, and selections. Saved bids
+            in the backend will not be affected.
+          </Text>
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={() => setResetConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={handleConfirmReset}>
+              Reset Calculator
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
       <Container size="xl" py="md" px={"md"} fluid>
         {/* Header */}
         <PageHeader
           title="Universal Calculator"
           subtitle="Select products, adjust spreads and labor—real pricing, TDS, and product info included."
           rightSection={
-            <Button size="xs" variant="white" color="red" onClick={() => {
-              if (!confirm('Reset Universal Calculator? This will clear local calculator draft & snapshot state.')) return;
-              try {
-                localStorage.removeItem('uc.lastSnapshot');
-                localStorage.removeItem('calculatorDraft.v1');
-              } catch { }
-              setSelectedManufacturer('');
-              setSelectedSystemGroup('');
-              setSelectedSystem('');
-              setSelectedSurfaceHardness('');
-              setTotalSqft(0);
-              setDimensions({ length: 0, width: 0 });
-              setPricingMethod('MARGIN_BASED');
-              setProfitMargin(50);
-              setLaborRate(55);
-              setTotalLaborHours(0);
-              setHasCalculated(false);
-              setResultQtyOverrides({});
-              setTargetPpsf(0);
-              setCatalogOpen(false);
-              setCatalogQuery('');
-              setCatalogCategory(null);
-              setCatalogManu(null);
-              setCatalogLimit(24);
-              calculatorDraftActions.reset('userReset');
-              notifications.show({ title: 'Reset Complete', message: 'Universal Calculator restored to defaults.', color: 'green' });
-              window.history.replaceState({}, document.title, '/universal-calculator');
-            }}>Reset</Button>
+            <Button
+              size="xs"
+              variant="white"
+              color="red"
+              onClick={() => setResetConfirmOpen(true)}
+            >
+              Reset
+            </Button>
           }
         />
 
