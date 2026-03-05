@@ -442,66 +442,6 @@ export default function UniversalCalculator() {
     });
   }, [selectedManufacturer, availableManufacturers]);
 
-  // Note: category discovery is handled implicitly by option builders
-
-  // Helper: build Select options from products by category and current manufacturer
-  const getComponentsByCategory = (category: string) => {
-    // Simplified slugify to match mobile (less aggressive, handles & and . better)
-    const slugify = (s?: string | null) =>
-      (s || '')
-        .toString()
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '-');
-
-    const normalize = (s?: string | null) => (s || '').toString().toLowerCase().trim();
-    const catSlug = slugify(category);
-    const targetLower = normalize(category);
-
-    if (!selectedManufacturerIdNum) {
-      return [] as { value: string; label: string }[];
-    }
-
-    // The products list is already scoped to the selected manufacturer via the API queries
-    const filtered = products
-      .filter(p => {
-        // Match logic from mobile version:
-
-        // 1. Primary category match
-        const productCategory = slugify(p.category);
-        if (productCategory === catSlug) return true;
-
-        // 2. Product name match (for terms >= 4 chars)
-        const productName = normalize(p.name || '');
-        if (targetLower.length >= 4 && productName.includes(targetLower)) return true;
-
-        // 3. System categories check
-        if ((p as any).system_categories && Array.isArray((p as any).system_categories)) {
-          if ((p as any).system_categories.some((sc: string) => slugify(sc) === catSlug)) {
-            return true;
-          }
-        }
-
-        return false;
-      })
-      .map(product => {
-        let cleanName = product.name || '';
-        // Remove manufacturer prefix to avoid redundancy/truncation
-        const manu = product.manufacturer || '';
-        if (normalize(cleanName).startsWith(normalize(manu))) {
-          cleanName = cleanName.substring(manu.length).trim().replace(/^[-–—:\s]+/, '');
-        }
-        // Remove common prefixes for readability
-        cleanName = cleanName.replace(/^metallic\s+pigment\s+/i, '');
-        return {
-          value: product.id.toString(),
-          label: cleanName || product.name
-        };
-      });
-
-    return filtered;
-  };
-
   // Get available systems based on selected manufacturer and system group
   const availableSystems = useMemo(() => {
     if (!selectedManufacturer || !selectedSystemGroup) return [];
