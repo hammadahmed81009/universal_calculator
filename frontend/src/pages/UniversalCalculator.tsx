@@ -57,6 +57,7 @@ import { useMyManufacturers } from '../hooks/useManufacturers';
 import { getImageUrl } from '../utils/imageUrl';
 import { getPreselectedClient, clearPreselectedClient } from '../utils/clientPreselection';
 import { applyManufacturerDiscount, getBasePigmentRatio, allocateByWeights } from '../utils/universalCalculator';
+import { useUniversalCalculatorState } from '../hooks/useUniversalCalculatorState';
 
 interface Product {
   id: number;
@@ -91,33 +92,36 @@ interface Manufacturer {
 export default function UniversalCalculator() {
   const [, setLocation] = useLocation();
   const draft = useCalculatorDraft();
-  
-  // Helper function to handle Select onChange without allowing deselection
-  const handleSelectChange = useCallback((currentValue: string, newValue: string | null, setter: (value: string) => void) => {
-    // Only update if we have a new value and it's different from current
-    if (newValue && newValue !== currentValue) {
-      setter(newValue);
-    }
-    // If newValue is null or empty, keep the current value (prevent deselection)
-  }, []);
-  
-  // State variables
-  const [selectedManufacturer, setSelectedManufacturer] = useState<string>('');
-  const [selectedSystemGroup, setSelectedSystemGroup] = useState<string>('');
-  const [selectedSystem, setSelectedSystem] = useState<string>('');
-  const [selectedSurfaceHardness, setSelectedSurfaceHardness] = useState<string>('');
-  const [totalSqft, setTotalSqft] = useState<number>(0);
-  const [dimensions, setDimensions] = useState({ length: 0, width: 0 });
-  // Pricing method for Step 4
-  const [pricingMethod, setPricingMethod] = useState<PricingMethod>('MARGIN_BASED');
-  const [profitMargin, setProfitMargin] = useState<number>(50);
-  const [laborRate, setLaborRate] = useState<number>(55);
-  const [totalLaborHours, setTotalLaborHours] = useState<number>(0);
-  const [hasCalculated, setHasCalculated] = useState<boolean>(false);
-  // Manual quantity overrides for product-backed result rows
-  const [resultQtyOverrides, setResultQtyOverrides] = useState<Record<string, number>>({});
-  // Target PPSF pricing method
-  const [targetPpsf, setTargetPpsf] = useState<number>(0);
+
+  // Core calculator state (selection, dimensions, pricing)
+  const {
+    selectedManufacturer,
+    setSelectedManufacturer,
+    selectedSystemGroup,
+    setSelectedSystemGroup,
+    selectedSystem,
+    setSelectedSystem,
+    selectedSurfaceHardness,
+    setSelectedSurfaceHardness,
+    totalSqft,
+    setTotalSqft,
+    dimensions,
+    setDimensions,
+    pricingMethod,
+    setPricingMethod,
+    profitMargin,
+    setProfitMargin,
+    laborRate,
+    setLaborRate,
+    totalLaborHours,
+    setTotalLaborHours,
+    hasCalculated,
+    setHasCalculated,
+    resultQtyOverrides,
+    setResultQtyOverrides,
+    targetPpsf,
+    setTargetPpsf,
+  } = useUniversalCalculatorState();
   // Catalog modal state
   const [catalogOpen, setCatalogOpen] = useState<boolean>(false);
   const [catalogQuery, setCatalogQuery] = useState<string>("");
