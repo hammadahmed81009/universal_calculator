@@ -74,12 +74,92 @@ import {
   ADD_ON_ID_STEM_WALLS_HOURS,
 } from '../constants/addOnIds';
 
-type PricedProduct = {
+export type PricedProduct = {
   id: number | string;
   name: string;
   price?: number;
   unit?: string | null;
 } & Record<string, unknown>;
+
+export type CountertopMaterialBase = {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  tds: string;
+};
+
+export type CountertopMaterialResolved = CountertopMaterialBase & { editable: boolean };
+
+export function resolveCountertopMaterialsFromCatalog(args: {
+  products: PricedProduct[];
+  getProductImageUrl: (relativePath?: string | null) => string;
+}): CountertopMaterialResolved[] {
+  const { products, getProductImageUrl } = args;
+
+  const countertopMaterialExtras: CountertopMaterialBase[] = [
+    { id: 'ct-sample-board', name: 'Sample Board — Board', price: 25.0, image: '', tds: '' },
+    { id: 'ct-metal-base', name: 'Edge Type (materials) — Metal Base — Base Set', price: 138.0, image: '', tds: '' },
+    { id: 'ct-mdf-4x8', name: 'MDF 4×8 — Sheet', price: 55.0, image: '', tds: '' },
+    { id: 'ct-foamular-4x8', name: 'Foamular 4×8 — Sheet', price: 35.0, image: '', tds: '' },
+    { id: 'ct-live-oak-slab', name: 'Live Oak Slab — Piece', price: 125.0, image: '', tds: '' },
+    { id: 'ct-custom-wood-slab', name: 'Custom Wood Slab — Piece', price: 0.0, image: '', tds: '' },
+    { id: 'ct-custom-piece', name: 'Custom Piece (metal/wood/acrylic) — Piece', price: 0.0, image: '', tds: '' },
+  ];
+
+  const normalize = (s: string) => s.toLowerCase().replace(/×/g, 'x').replace(/\s+/g, ' ').trim();
+  const hasAll = (s: string, keys: string[]) => {
+    const n = normalize(s);
+    return keys.every((k) => n.includes(k));
+  };
+
+  const findByKeywords = (keywords: string[]): PricedProduct | undefined => {
+    const matches = products.filter((p) => hasAll(String(p.name || ''), keywords));
+    if (matches.length === 0) return undefined;
+    const withImg = matches.find((m) => !!(m as any).image_url);
+    return withImg || matches[0];
+  };
+
+  return countertopMaterialExtras.map((base) => {
+    if (base.id === 'ct-mdf-4x8' || /\bmdf\b/i.test(base.name)) {
+      const prod = findByKeywords(['mdf', '4x8']);
+      if (prod) {
+        const imageUrl = (prod as any).image_url as string | undefined;
+        const tdsUrl = (prod as any).technical_data_sheet_url as string | undefined;
+        return {
+          id: String(prod.id),
+          name: String(prod.name),
+          price: Number.parseFloat(String((prod as any).unit_price || '0')) || 0,
+          image: getProductImageUrl(imageUrl || null),
+          tds: tdsUrl || '',
+          editable: false,
+        };
+      }
+    }
+
+    if (base.id === 'ct-foamular-4x8' || /foamular/i.test(base.name)) {
+      const prod = findByKeywords(['foamular', '4x8']);
+      if (prod) {
+        const imageUrl = (prod as any).image_url as string | undefined;
+        const tdsUrl = (prod as any).technical_data_sheet_url as string | undefined;
+        return {
+          id: String(prod.id),
+          name: String(prod.name),
+          price: Number.parseFloat(String((prod as any).unit_price || '0')) || 0,
+          image: getProductImageUrl(imageUrl || null),
+          tds: tdsUrl || '',
+          editable: false,
+        };
+      }
+    }
+
+    // Default to custom (editable) item with placeholder image
+    return {
+      ...base,
+      editable: true,
+    };
+  });
+}
 
 export function buildMaterialAddOnItems(args: {
   crackJointFillers: any[];

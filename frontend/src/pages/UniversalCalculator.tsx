@@ -43,6 +43,7 @@ import {
   buildLaborAddOnItems,
   buildDisplayLineItems,
   computeSystemComponentsSummary,
+  resolveCountertopMaterialsFromCatalog,
 } from '../utils/universalCalculator';
 import type { LineItem } from '../utils/pnl';
 import { useUniversalCalculatorState } from '../hooks/useUniversalCalculatorState';
@@ -1085,68 +1086,15 @@ export default function UniversalCalculator() {
     return Object.values(map);
   }, [products, getAddOnProductsByCategory]);
 
-  // Countertops-only material extras (base list; some may be resolved to real products if found)
-  type SimpleItem = { id: string; name: string; price: number; image: string; tds: string };
-  const countertopMaterialExtras: SimpleItem[] = useMemo(() => ([
-    { id: 'ct-sample-board', name: 'Sample Board — Board', price: 25.0, image: '', tds: '' },
-    { id: 'ct-metal-base', name: 'Edge Type (materials) — Metal Base — Base Set', price: 138.0, image: '', tds: '' },
-    { id: 'ct-mdf-4x8', name: 'MDF 4×8 — Sheet', price: 55.0, image: '', tds: '' },
-    { id: 'ct-foamular-4x8', name: 'Foamular 4×8 — Sheet', price: 35.0, image: '', tds: '' },
-    { id: 'ct-live-oak-slab', name: 'Live Oak Slab — Piece', price: 125.0, image: '', tds: '' },
-    { id: 'ct-custom-wood-slab', name: 'Custom Wood Slab — Piece', price: 0.0, image: '', tds: '' },
-    { id: 'ct-custom-piece', name: 'Custom Piece (metal/wood/acrylic) — Piece', price: 0.0, image: '', tds: '' },
-  ]), []);
-
   // Resolve certain countertop materials to actual /products if available (e.g., MDF 4x8, Foamular 4x8)
-  type CTResolved = SimpleItem & { editable: boolean };
-  const countertopMaterialsResolved: CTResolved[] = useMemo(() => {
-    const normalize = (s: string) => s.toLowerCase().replace(/×/g, 'x').replace(/\s+/g, ' ').trim();
-    const hasAll = (s: string, keys: string[]) => {
-      const n = normalize(s);
-      return keys.every(k => n.includes(k));
-    };
-
-    const findByKeywords = (keywords: string[]): any | undefined => {
-      // Prefer items that look like sheets or substrates if multiple match
-      const matches = products.filter(p => hasAll(p.name || '', keywords));
-      if (matches.length === 0) return undefined;
-      // Pick the one with an image if possible
-      const withImg = matches.find(m => !!m.image_url);
-      return withImg || matches[0];
-    };
-
-    return countertopMaterialExtras.map(base => {
-      // Attempt resolutions for known items
-      if (base.id === 'ct-mdf-4x8' || /\bmdf\b/i.test(base.name)) {
-        const prod = findByKeywords(['mdf', '4x8']);
-        if (prod) {
-          return {
-            id: prod.id.toString(),
-            name: prod.name,
-            price: parseFloat(prod.unit_price || '0') || 0,
-            image: getProductImageUrl(prod.image_url),
-            tds: prod.technical_data_sheet_url || '',
-            editable: false,
-          } as CTResolved;
-        }
-      }
-      if (base.id === 'ct-foamular-4x8' || /foamular/i.test(base.name)) {
-        const prod = findByKeywords(['foamular', '4x8']);
-        if (prod) {
-          return {
-            id: prod.id.toString(),
-            name: prod.name,
-            price: parseFloat(prod.unit_price || '0') || 0,
-            image: getProductImageUrl(prod.image_url),
-            tds: prod.technical_data_sheet_url || '',
-            editable: false,
-          } as CTResolved;
-        }
-      }
-      // Default to custom (editable) item with placeholder image
-      return { ...base, editable: true } as CTResolved;
-    });
-  }, [products, countertopMaterialExtras]);
+  const countertopMaterialsResolved = useMemo(
+    () =>
+      resolveCountertopMaterialsFromCatalog({
+        products: products as any,
+        getProductImageUrl,
+      }),
+    [products, getProductImageUrl],
+  );
 
   // Labor add-ons catalog with default rates and units (shared)
 
