@@ -1,4 +1,4 @@
-import { Box, Grid, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { Box, Button, Grid, Group, Paper, Stack, Text, Title } from '@mantine/core';
 
 type Product = { id: number; name: string };
 
@@ -24,6 +24,10 @@ export type PostCalculationDetailsProps = {
   effectiveSqft: number;
   availableManufacturers: Array<{ id: string; name: string }>;
   selectedManufacturer: string;
+
+  // Optional mix assistants
+  onApplyMetallicMix?: () => void;
+  onApplyCountertopMix?: () => void;
 };
 
 export function PostCalculationDetails(props: PostCalculationDetailsProps) {
@@ -43,6 +47,8 @@ export function PostCalculationDetails(props: PostCalculationDetailsProps) {
     effectiveSqft,
     availableManufacturers,
     selectedManufacturer,
+    onApplyMetallicMix,
+    onApplyCountertopMix,
   } = props;
 
   if (!hasCalculated) return null;
@@ -85,19 +91,28 @@ export function PostCalculationDetails(props: PostCalculationDetailsProps) {
                     </Group>
                   )}
                   {selectedMetallicPigments.length > 0 && (
-                    <div>
-                      <Text size="sm" mb="xs">
-                        Metallic Pigments:
-                      </Text>
-                      {selectedMetallicPigments.map((pigment, idx) => (
-                        <Group justify="space-between" key={idx} pl="sm">
-                          <Text size="xs">{pigment.name}</Text>
-                          <Text size="xs" fw={500}>
-                            Qty: {pigment.quantity}
-                          </Text>
+                    <Stack gap="xs">
+                      <div>
+                        <Text size="sm" mb="xs">
+                          Metallic Pigments:
+                        </Text>
+                        {selectedMetallicPigments.map((pigment, idx) => (
+                          <Group justify="space-between" key={idx} pl="sm">
+                            <Text size="xs">{pigment.name}</Text>
+                            <Text size="xs" fw={500}>
+                              Qty: {pigment.quantity}
+                            </Text>
+                          </Group>
+                        ))}
+                      </div>
+                      {onApplyMetallicMix && (
+                        <Group justify="flex-end">
+                          <Button size="xs" variant="light" onClick={onApplyMetallicMix}>
+                            Auto-allocate pigments
+                          </Button>
                         </Group>
-                      ))}
-                    </div>
+                      )}
+                    </Stack>
                   )}
                   {selectedMetallicTopCoat && (
                     <Group justify="space-between">
@@ -132,19 +147,28 @@ export function PostCalculationDetails(props: PostCalculationDetailsProps) {
                     </Group>
                   )}
                   {selectedCountertopMetallicPigments.length > 0 && (
-                    <div>
-                      <Text size="sm" mb="xs">
-                        Metallic Pigments:
-                      </Text>
-                      {selectedCountertopMetallicPigments.map((pigment, idx) => (
-                        <Group justify="space-between" key={idx} pl="sm">
-                          <Text size="xs">{pigment.name}</Text>
-                          <Text size="xs" fw={500}>
-                            Qty: {pigment.quantity}
-                          </Text>
+                    <Stack gap="xs">
+                      <div>
+                        <Text size="sm" mb="xs">
+                          Metallic Pigments:
+                        </Text>
+                        {selectedCountertopMetallicPigments.map((pigment, idx) => (
+                          <Group justify="space-between" key={idx} pl="sm">
+                            <Text size="xs">{pigment.name}</Text>
+                            <Text size="xs" fw={500}>
+                              Qty: {pigment.quantity}
+                            </Text>
+                          </Group>
+                        ))}
+                      </div>
+                      {onApplyCountertopMix && (
+                        <Group justify="flex-end">
+                          <Button size="xs" variant="light" onClick={onApplyCountertopMix}>
+                            Auto-allocate pigments
+                          </Button>
                         </Group>
-                      ))}
-                    </div>
+                      )}
+                    </Stack>
                   )}
                   {selectedCountertopTopCoat && (
                     <Group justify="space-between">
