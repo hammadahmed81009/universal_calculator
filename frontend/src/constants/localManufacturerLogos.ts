@@ -1,0 +1,23 @@
+export const localManufacturerLogos: Record<string, string> = {
+  'aras-flake': '/manufacturer_logos/035_ArasFlake_Primary-Black_1.avif',
+  'astc-global': '/manufacturer_logos/ASTC.png',
+  'chemtec-epoxy-coatings': '/manufacturer_logos/chemtec.jpg',
+  'crown-polymers': '/manufacturer_logos/crown%20polymers.webp',
+  'desert-polymer': '/manufacturer_logos/desert-polymer.png',
+  'epoxy-depot': '/manufacturer_logos/Epoxy-Depot.png',
+  'ghost-shield': '/manufacturer_logos/Ghostshield.png',
+  ghostshield: '/manufacturer_logos/Ghostshield.png',
+  'mpc-coatings': '/manufacturer_logos/MPC.png',
+  'ppi-polypro': '/manufacturer_logos/PPI.png',
+  'ppi-polypro-industries': '/manufacturer_logos/PPI.png',
+  purepoxy: '/manufacturer_logos/PureEpoxy.png',
+  'resin-force': '/manufacturer_logos/Resinforce.png',
+  simiron: '/manufacturer_logos/Simrion.png',
+  stonecoat: '/manufacturer_logos/Stonecoat.png',
+  'us-resin-supply': '/manufacturer_logos/US.png',
+  'versatile-high-performance-coatings': '/manufacturer_logos/versatile.png',
+  westcoat: '/manufacturer_logos/westcoat_logo_clearchem.jpg',
+  'wrap-resins': '/manufacturer_logos/Wrap.png',
+  xps: '/manufacturer_logos/XPS.png',
+};
+

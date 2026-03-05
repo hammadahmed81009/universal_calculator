@@ -22,9 +22,8 @@ import { calculatePricing, formatMoney as fmtMoney, formatPpsf as fmtPpsf } from
 import { BidSnapshot as DocBidSnapshot, LineItem as DocLineItem } from '../utils/pnl';
 import { useLocation } from 'wouter';
 import { useCalculatorDraft, calculatorDraftActions } from '../store/calculatorDraft';
-import { sessionActions } from '../store/sessionContext';
 import { buildSavedBidPayload, snapshotToItems } from '../utils/mapper';
-import { toDraftPricingMethod, toBackendPricingMethod } from '../constants/pricingMethods';
+import { toDraftPricingMethod } from '../constants/pricingMethods';
 import { flooringLaborAddOns as laborAddOns, countertopLaborAddOns } from '../lib/laborCatalog';
 import type { LaborAddOn } from '../lib/laborCatalog';
 import NewEstimateModal, { type EstimateService } from '../components/NewEstimateModal';
@@ -35,10 +34,10 @@ import { useAddOnSuggestions } from '../hooks/useAddOnSuggestions';
 import { useMetallicMixAssistants } from '../hooks/useMetallicMixAssistants';
 import { getImageUrl } from '../utils/imageUrl';
 import { getPreselectedClient, clearPreselectedClient } from '../utils/clientPreselection';
+import { localManufacturerLogos } from '../constants/localManufacturerLogos';
 import {
   applyManufacturerDiscount,
   getBasePigmentRatio,
-  allocateByWeights,
   buildMaterialAddOnItems,
   buildLaborAddOnItems,
   buildDisplayLineItems,
@@ -295,30 +294,6 @@ export default function UniversalCalculator() {
       .replace(/^-+|-+$/g, '');
   };
 
-  // Local logo assets (fallback if API logo_url not available)
-  const localLogoMap: Record<string, string> = useMemo(() => ({
-    'aras-flake': '/manufacturer_logos/035_ArasFlake_Primary-Black_1.avif',
-    'astc-global': '/manufacturer_logos/ASTC.png',
-    'chemtec-epoxy-coatings': '/manufacturer_logos/chemtec.jpg',
-    'crown-polymers': '/manufacturer_logos/crown%20polymers.webp',
-    'desert-polymer': '/manufacturer_logos/desert-polymer.png',
-    'epoxy-depot': '/manufacturer_logos/Epoxy-Depot.png',
-    'ghost-shield': '/manufacturer_logos/Ghostshield.png',
-    'ghostshield': '/manufacturer_logos/Ghostshield.png',
-    'mpc-coatings': '/manufacturer_logos/MPC.png',
-    'ppi-polypro': '/manufacturer_logos/PPI.png',
-    'ppi-polypro-industries': '/manufacturer_logos/PPI.png',
-    'purepoxy': '/manufacturer_logos/PureEpoxy.png',
-    'resin-force': '/manufacturer_logos/Resinforce.png',
-    'simiron': '/manufacturer_logos/Simrion.png',
-    'stonecoat': '/manufacturer_logos/Stonecoat.png',
-    'us-resin-supply': '/manufacturer_logos/US.png',
-    'versatile-high-performance-coatings': '/manufacturer_logos/versatile.png',
-    'westcoat': '/manufacturer_logos/westcoat_logo_clearchem.jpg',
-    'wrap-resins': '/manufacturer_logos/Wrap.png',
-    'xps': '/manufacturer_logos/XPS.png'
-  }), []);
-
   // Build availableManufacturers from backend data (source of truth)
   // This ensures manufacturer names match between products and the manufacturer list
   const availableManufacturers: Manufacturer[] = useMemo(() => {
@@ -341,10 +316,10 @@ export default function UniversalCalculator() {
       return {
         id: slug,
         name: mfg.name,
-        logo: localLogoMap[slug] || '/manufacturer_logos/default.png'
+        logo: localManufacturerLogos[slug] || '/manufacturer_logos/default.png'
       };
     });
-  }, [apiManufacturers, localLogoMap]);
+  }, [apiManufacturers]);
 
   // Debug: Log when availableManufacturers is built
   useEffect(() => {
