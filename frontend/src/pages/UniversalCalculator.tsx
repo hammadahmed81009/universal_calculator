@@ -11,14 +11,11 @@ import {
   Box,
   Grid,
   NumberInput,
-  Divider,
-  Radio,
   Accordion,
   Badge,
   TextInput,
   Switch,
   SimpleGrid,
-  Modal,
 } from '@mantine/core';
 import { useQueries } from '@tanstack/react-query';
 import {
@@ -39,6 +36,8 @@ import { CalculationResultsSection } from './universal-calculator/CalculationRes
 import { ManufacturerStepCol } from './universal-calculator/steps/ManufacturerStepCol';
 import { AreaAndSurfaceStep } from './universal-calculator/steps/AreaAndSurfaceStep';
 import { PricingControlsSection } from './universal-calculator/steps/PricingControlsSection';
+import { ResetCalculatorModal } from '../components/universal-calculator/ResetCalculatorModal';
+import { ProductCatalogModal } from '../components/universal-calculator/ProductCatalogModal';
 import { AddOnOptionsSection } from './universal-calculator/AddOnOptionsSection';
 import './UniversalCalculator.compact.css';
 import useLocalStorage from '../hooks/useLocalStorage';
@@ -946,243 +945,6 @@ export default function UniversalCalculator() {
 
     return filtered;
   };
-
-  // Helper: build options by multiple category names in order with de-duplication
-  const getByCategories = useCallback((cats: string[]) => {
-    const raw = cats.flatMap(getComponentsByCategory);
-    const seen = new Set<string>();
-    return raw.filter(opt => {
-      if (!opt.value || seen.has(opt.value)) return false;
-      seen.add(opt.value);
-      return true;
-    });
-  }, [getComponentsByCategory]);
-
-  // No MVB (standard) Flake System options
-  const baseCoatOptions = useMemo(() => {
-    console.log('[Options] Computing baseCoatOptions');
-    return getByCategories(['Epoxy', 'Polyurea', 'Polyaspartic', 'Primers']);
-  }, [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const flakeColorOptions = useMemo(() => {
-    console.log('[Options] Computing flakeColorOptions');
-    return getByCategories(['Flake Colors']);
-  }, [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  // General top coat options (non-MVB systems)
-  const topCoatOptions = useMemo(() => (
-    getByCategories(['Polyaspartic Top Coats', 'Metallic Top Coats'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  // Base pigment options (non-MVB)
-  const basePigmentOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getByCategories(['Base Pigments'])
-    ]
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const solidTopCoatOptions = useMemo(() => (
-    getByCategories(['Polyaspartic Top Coats', 'Metallic Top Coats'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  // MVB Flake System component options
-  const mvbBasePigmentOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getByCategories(['Base Pigments'])
-    ]
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const mvbBaseCoatOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getByCategories(['Epoxy', 'MVB'])
-    ]
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const mvbFlakeColorOptions = useMemo(() => (
-    getByCategories(['Flake Colors'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const mvbTopCoatOptions = useMemo(() => (
-    getByCategories(['Polyaspartic Top Coats', 'Metallic Top Coats'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  // Metallic System component options
-  const metallicBasePigmentOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getByCategories(['Base Pigments'])
-    ]
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const metallicBaseCoatOptions = useMemo(() => (
-    getByCategories(['Epoxy', 'MVB'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const metallicMoneyCoatOptions = useMemo(() => (
-    getByCategories(['Metallic Money Coat'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const metallicPigmentOptions = useMemo(() => {
-    // Try multiple possible category names for metallic pigments
-    const possibleCategories = [
-      'Metallic Pigments', 'Metallic Pigment', 'Pigments', 'Pigment', 'Metallic Colors', 'Metallic', 'Colors', 'Flake Color'
-    ];
-    for (const category of possibleCategories) {
-      const opts = getComponentsByCategory(category);
-      if (opts.length > 0) return opts;
-    }
-    // Fallback when none found
-    return [
-      { value: 'flash-cobalt-blue', label: 'Flash Cobalt Blue' },
-      { value: 'magic-blue', label: 'Magic Blue' },
-      { value: 'pearl-white', label: 'Pearl White' },
-      { value: 'copper-penny', label: 'Copper Penny' },
-      { value: 'silver-bullet', label: 'Silver Bullet' },
-      { value: 'gold-rush', label: 'Gold Rush' }
-    ];
-  }, [products, selectedManufacturer]);
-
-  const metallicTopCoatOptions = useMemo(() => (
-    getByCategories(['Metallic Top Coats', 'Polyaspartic Topcoats'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  // Polishing option builders
-  const polishCleanerOptions = useMemo(() => (
-    getByCategories(['Cleaners/Neutralizers', 'Cleaners', 'Neutralizers'])
-  ), [products, selectedManufacturer, getByCategories]);
-  const polishCrackFillerOptions = useMemo(() => (
-    getByCategories(['Crack & Joint Filler', 'Crack & Joint Fillers'])
-  ), [products, selectedManufacturer, getByCategories]);
-  const polishSealerGuardOptions = useMemo(() => (
-    getByCategories(['Sealers & Guards', 'Guards/Finishes', 'Sealers', 'Guards'])
-  ), [products, selectedManufacturer, getByCategories]);
-  const burnishPadOptions = useMemo(() => (
-    getByCategories(['Diamond-impregnated Burnishing Pads', 'Burnishing Pads', 'Burnishing'])
-  ), [products, selectedManufacturer, getByCategories]);
-  const slurryGroutOptions = useMemo(() => (
-    getByCategories(['Slurry/Grout', 'Grout', 'Slurry'])
-  ), [products, selectedManufacturer, getByCategories]);
-  const densifiersOptions = useMemo(() => (
-    getByCategories(['Densifiers'])
-  ), [products, selectedManufacturer, getByCategories]);
-  const concreteDyesOptions = useMemo(() => (
-    getByCategories(['Concrete Dyes', 'Dyes'])
-  ), [products, selectedManufacturer, getByCategories]);
-  const premiumGuardsOptions = useMemo(() => (
-    getByCategories(['Guards/Finishes (Premium)', 'Premium Guards', 'Premium Micro-Guard', 'Premium Microguard'])
-  ), [products, selectedManufacturer, getByCategories]);
-
-  // Solid Color System component options
-  const solidBasePigmentOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getByCategories(['Base Pigments'])
-    ]
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const solidGroutCoatOptions = useMemo(() => (
-    getByCategories(['MVB', 'Epoxy'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const solidBaseCoatOptions = useMemo(() => (
-    getByCategories(['MVB', 'Epoxy', 'Polyurea', 'Polyaspartic', 'Primers'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const solidExtraBaseCoatOptions = useMemo(() => (
-    getByCategories(['Epoxy', 'Polyurea', 'Polyaspartic'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const metallicGroutCoatOptions = useMemo(() => (
-    getByCategories(['MVB', 'Epoxy'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  // Grind & Seal System component options
-  const grindSealPrimerOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getComponentsByCategory('Primers')
-    ]
-  ), [products, selectedManufacturer]);
-
-  const grindSealGroutCoatOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getByCategories(['Epoxy', 'Metallic Top Coats'])
-    ]
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const grindSealBaseCoatOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getByCategories(['Epoxy', 'Metallic Top Coats'])
-    ]
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const grindSealIntermediateCoatOptions = useMemo(() => (
-    getByCategories(['Epoxy', 'Metallic Top Coats'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const grindSealTopCoatOptions = useMemo(() => (
-    getByCategories(['Metallic Top Coats', 'Polyaspartic Top Coats'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const grindSealAdditionalTopCoatOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getByCategories(['Metallic Top Coats', 'Polyaspartic Top Coats'])
-    ]
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  // Countertop System component options
-  const countertopPrimerOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getByCategories(['Primers'])
-    ]
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const countertopBasePigmentOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getByCategories(['Base Pigments'])
-    ]
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const countertopMetallicArtCoatOptions = useMemo(() => (
-    getByCategories(['Metallic Money Coat'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const countertopFloodCoatOptions = useMemo(() => (
-    [
-      { value: '', label: 'None' },
-      ...getByCategories(['Metallic Money Coat'])
-    ]
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
-
-  const countertopMetallicPigmentOptions = useMemo(() => {
-    const possibleCategories = [
-      'Metallic Pigments', 'Metallic Pigment', 'Pigments', 'Pigment', 'Metallic Colors', 'Metallic', 'Colors', 'Flake Color'
-    ];
-    for (const category of possibleCategories) {
-      const opts = getComponentsByCategory(category);
-      if (opts.length > 0) return opts;
-    }
-    return [
-      { value: 'flash-cobalt-blue', label: 'Flash Cobalt Blue' },
-      { value: 'magic-blue', label: 'Magic Blue' },
-      { value: 'pearl-white', label: 'Pearl White' },
-      { value: 'copper-penny', label: 'Copper Penny' },
-      { value: 'silver-bullet', label: 'Silver Bullet' },
-      { value: 'gold-rush', label: 'Gold Rush' }
-    ];
-  }, [products, selectedManufacturer]);
-
-  const countertopTopCoatOptions = useMemo(() => (
-    getByCategories(['Metallic Top Coats'])
-  ), [products, selectedManufacturer, selectedManufacturerIdNum, getByCategories]);
 
   // Get available systems based on selected manufacturer and system group
   const availableSystems = useMemo(() => {
@@ -3203,27 +2965,11 @@ export default function UniversalCalculator() {
 
   return (
     <AppLayout>
-      <Modal
+      <ResetCalculatorModal
         opened={resetConfirmOpen}
-        onClose={() => setResetConfirmOpen(false)}
-        title="Reset Universal Calculator?"
-        centered
-      >
-        <Stack gap="sm">
-          <Text size="sm">
-            This will clear your local calculator draft, snapshot state, and selections. Saved bids
-            in the backend will not be affected.
-          </Text>
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={() => setResetConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button color="red" onClick={handleConfirmReset}>
-              Reset Calculator
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+        onCancel={() => setResetConfirmOpen(false)}
+        onConfirm={handleConfirmReset}
+      />
       <Container size="xl" py="md" px={"md"} fluid>
         {/* Header */}
         <PageHeader
@@ -3932,121 +3678,26 @@ export default function UniversalCalculator() {
                     </Accordion.Item>
                   )}
                 </Accordion>
-                {/* Catalog Modal */}
-                <Modal
-                  opened={catalogOpen}
-                  onClose={() => setCatalogOpen(false)}
-                  title={`Product Catalog${catalogManu ? ` — ${catalogManu}` : (selectedManufacturerName ? ` — ${selectedManufacturerName}` : '')}`}
-                  size="80vw"
-                  radius="md"
-                  centered
-                >
-                  <Stack gap="sm">
-                    <Group align="flex-end" wrap="wrap" justify="space-between">
-                      <Group align="flex-end" wrap="wrap" style={{ flex: 1 }}>
-                        <TextInput label="Search" placeholder="Search products by name…" value={catalogQuery} onChange={(e) => setCatalogQuery(e.currentTarget.value)} style={{ flex: 1, minWidth: 220 }} />
-                        <Select
-                          label="Category"
-                          clearable
-                          placeholder="All Categories"
-                          data={[...new Set(products.map(p => p.category).filter(Boolean))].map(c => ({ value: c!, label: c! }))}
-                          value={catalogCategory}
-                          onChange={setCatalogCategory}
-                          style={{ minWidth: 200 }}
-                        />
-                        <Select
-                          label="Manufacturer"
-                          clearable
-                          placeholder="All Manufacturers"
-                          data={[...new Set(products.map(p => p.manufacturer).filter(Boolean))].map(m => ({ value: m!, label: m! }))}
-                          value={catalogManu}
-                          onChange={setCatalogManu}
-                          style={{ minWidth: 220 }}
-                        />
-                      </Group>
-                      {(() => {
-                        const filtered = products
-                          .filter(p => !catalogQuery || p.name.toLowerCase().includes(catalogQuery.toLowerCase()))
-                          .filter(p => !catalogCategory || p.category === catalogCategory)
-                          .filter(p => !catalogManu || p.manufacturer === catalogManu);
-                        const total = filtered.length;
-                        const shown = Math.min(catalogLimit, total);
-                        return (
-                          <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
-                            Showing {total > 0 ? `1–${shown}` : '0'} of {total} products
-                          </Text>
-                        );
-                      })()}
-                    </Group>
-                    <Divider />
-                    {(() => {
-                      const filtered = products
-                        .filter(p => !catalogQuery || p.name.toLowerCase().includes(catalogQuery.toLowerCase()))
-                        .filter(p => !catalogCategory || p.category === catalogCategory)
-                        .filter(p => !catalogManu || p.manufacturer === catalogManu);
-                      const slice = filtered.slice(0, catalogLimit);
-                      return (
-                        <>
-                          <SimpleGrid
-                            cols={{ base: 1, sm: 2, md: 3, lg: 4 }}
-                            spacing="sm"
-                            style={{ maxHeight: '70vh', overflow: 'auto', paddingRight: 4 }}
-                          >
-                            {slice.map(p => {
-                              const id = p.id.toString();
-                              const price = getUnitPrice(p) || 0;
-                              const qty = addOnQuantities[id] || 0;
-                              return (
-                                <Paper key={id} withBorder radius="md" p="sm">
-                                  <Stack gap={6}>
-                                    <Group gap={8} align="flex-start" wrap="nowrap">
-                                      <ThumbImg src={getProductImageUrl(p.image_url)} size={48} />
-                                      <div style={{ minWidth: 0 }}>
-                                        <Text
-                                          size="sm"
-                                          fw={600}
-                                          style={{
-                                            lineHeight: 1.2,
-                                            display: '-webkit-box',
-                                            WebkitLineClamp: 2 as any,
-                                            WebkitBoxOrient: 'vertical' as any,
-                                            overflow: 'hidden'
-                                          }}
-                                        >
-                                          {p.name}
-                                        </Text>
-                                        <Group gap={8} wrap="wrap">
-                                          {p.sku && <Badge size="xs" variant="light" color="gray">SKU: {p.sku}</Badge>}
-                                          <Badge size="xs" variant="light" color="blue">{p.category || 'Uncategorized'}</Badge>
-                                          {p.manufacturer && <Badge size="xs" variant="light" color="teal">{p.manufacturer}</Badge>}
-                                        </Group>
-                                      </div>
-                                    </Group>
-                                    <Group justify="space-between" align="center">
-                                      <Text size="sm" fw={600}>${price.toFixed(2)}</Text>
-                                      <Group gap="xs" align="center">
-                                        <NumberInput size="xs" w={84} min={0} value={qty} onChange={(v) => setAddOnQuantities(prev => ({ ...prev, [id]: Number(v) || 0 }))} />
-                                        <Button size="xs" onClick={() => {
-                                          setAddOnQuantities(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
-                                          notifications.show({ title: 'Added to estimate', message: `${p.name} added.`, color: 'green' });
-                                        }}>Add to Estimate</Button>
-                                      </Group>
-                                    </Group>
-                                  </Stack>
-                                </Paper>
-                              );
-                            })}
-                          </SimpleGrid>
-                          {filtered.length > catalogLimit && (
-                            <Group justify="center" mt="sm">
-                              <Button variant="light" onClick={() => setCatalogLimit(l => l + 24)}>Load more</Button>
-                            </Group>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </Stack>
-                </Modal>
+        {/* Catalog Modal */}
+        <ProductCatalogModal
+          opened={catalogOpen}
+          onClose={() => setCatalogOpen(false)}
+          products={products as any}
+          selectedManufacturerName={selectedManufacturerName}
+          catalogQuery={catalogQuery}
+          setCatalogQuery={setCatalogQuery}
+          catalogCategory={catalogCategory}
+          setCatalogCategory={setCatalogCategory}
+          catalogManu={catalogManu}
+          setCatalogManu={setCatalogManu}
+          catalogLimit={catalogLimit}
+          setCatalogLimit={setCatalogLimit}
+          addOnQuantities={addOnQuantities}
+          setAddOnQuantities={setAddOnQuantities}
+          getUnitPrice={getUnitPrice as any}
+          getProductImageUrl={getProductImageUrl}
+          ThumbImg={ThumbImg}
+        />
 
                 {/* Suggestions appear just above the footer actions for better flow */}
                 {(effectiveSqft > 0 && !!selectedSystem) && (
