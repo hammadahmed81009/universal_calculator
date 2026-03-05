@@ -39,6 +39,7 @@ import { PricingControlsSection } from './universal-calculator/steps/PricingCont
 import { ResetCalculatorModal } from '../components/universal-calculator/ResetCalculatorModal';
 import { ProductCatalogModal } from '../components/universal-calculator/ProductCatalogModal';
 import { SummaryBar } from '../components/universal-calculator/SummaryBar';
+import { SystemComponentsSection } from '../components/universal-calculator/SystemComponentsSection';
 import { AddOnOptionsSection } from './universal-calculator/AddOnOptionsSection';
 import './UniversalCalculator.compact.css';
 import useLocalStorage from '../hooks/useLocalStorage';
@@ -3125,7 +3126,11 @@ export default function UniversalCalculator() {
         {/* Split: System Components (left) + Add-On Options (right) */}
         <section className="uc-split" aria-label="System Components and Add-On Options">
           <div id="uc-components" className="space-y-4">
-            {/* System Components column reserved for future extraction */}
+            <SystemComponentsSection
+              systemMaterialItems={systemMaterialItems}
+              summary={systemComponentsSummary}
+              effectiveSqft={effectiveSqft}
+            />
           </div>
           <aside id="uc-addons" className="space-y-4">
             <AddOnOptionsSection
