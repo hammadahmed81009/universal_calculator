@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Container, Button, Grid } from '@mantine/core';
+import { Container, Grid } from '@mantine/core';
 import { useQuickPresets } from '../hooks/useQuickPresets';
 import { notifications } from '@mantine/notifications';
 import { apiPost, apiPut } from '../lib/api';
@@ -15,6 +15,7 @@ import { ProductCatalogModal } from '../components/universal-calculator/ProductC
 import { SummaryBar } from '../components/universal-calculator/SummaryBar';
 import { SystemComponentsSection } from '../components/universal-calculator/SystemComponentsSection';
 import { AddOnOptionsSection } from './universal-calculator/AddOnOptionsSection';
+import { CalculatorHeaderActions } from './universal-calculator/CalculatorHeaderActions';
 import './UniversalCalculator.compact.css';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { getCurrentUserData, saveCurrentUserData } from '../utils/userScopedStorage';
@@ -2008,14 +2009,7 @@ export default function UniversalCalculator() {
           title="Universal Calculator"
           subtitle="Select products, adjust spreads and labor—real pricing, TDS, and product info included."
           rightSection={
-            <Button
-              size="xs"
-              variant="white"
-              color="red"
-              onClick={() => setResetConfirmOpen(true)}
-            >
-              Reset
-            </Button>
+            <CalculatorHeaderActions onResetClick={() => setResetConfirmOpen(true)} />
           }
         />
 
