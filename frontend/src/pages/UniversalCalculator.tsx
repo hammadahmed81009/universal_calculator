@@ -1,23 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import {
-  Container,
-  Title,
-  Paper,
-  Button,
-  Stack,
-  Text,
-  Select,
-  Box,
-  Grid,
-} from '@mantine/core';
+import { Container, Button, Grid } from '@mantine/core';
 import { useQueries } from '@tanstack/react-query';
-import {
-  IconClockHour3,
-  IconRoad,
-  IconRulerMeasure,
-  IconReceipt2,
-  IconSparkles,
-} from '@tabler/icons-react';
 import { useQuickPresets } from '../hooks/useQuickPresets';
 import { notifications } from '@mantine/notifications';
 import { apiGet, apiPost, apiPut } from '../lib/api';
@@ -36,7 +19,7 @@ import { AddOnOptionsSection } from './universal-calculator/AddOnOptionsSection'
 import './UniversalCalculator.compact.css';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { getCurrentUserData, saveCurrentUserData } from '../utils/userScopedStorage';
-import { calculatePricing, PricingMethod, formatMoney as fmtMoney, formatPpsf as fmtPpsf } from '../utils/pricing';
+import { calculatePricing, formatMoney as fmtMoney, formatPpsf as fmtPpsf } from '../utils/pricing';
 import { BidSnapshot as DocBidSnapshot, LineItem as DocLineItem } from '../utils/pnl';
 import { useLocation } from 'wouter';
 import { useCalculatorDraft, calculatorDraftActions } from '../store/calculatorDraft';
@@ -60,6 +43,9 @@ import {
 } from '../utils/universalCalculator';
 import type { LineItem } from '../utils/pnl';
 import { useUniversalCalculatorState } from '../hooks/useUniversalCalculatorState';
+import { SystemStepCol } from './universal-calculator/steps/SystemStepCol';
+import { ThumbImg } from '../components/universal-calculator/ThumbImg';
+import { LaborThumb } from '../components/universal-calculator/LaborThumb';
 
 interface Product {
   id: number;
@@ -792,17 +778,6 @@ export default function UniversalCalculator() {
     });
   }, [products.length, productsLoading, productsError]);
 
-  // Debug: Log when products array changes
-  useEffect(() => {
-    console.log('[Products Effect] Products array updated:', {
-      count: products.length,
-      loading: productsLoading,
-      error: productsError,
-      hasManufacturer: products.filter(p => p.manufacturer).length,
-      sampleProduct: products[0]
-    });
-  }, [products.length, productsLoading, productsError]);
-
   // Auto-trigger calculation after loading saved bid
   useEffect(() => {
     if (autoTriggerCalc && !isLoadingSavedBid) {
@@ -1262,28 +1237,6 @@ export default function UniversalCalculator() {
     return `${API_BASE_URL}${relativePath}`;
   };
 
-  // Small thumbnail component with robust fallback to avoid broken images
-  const ThumbImg = ({ src, size = 28, alt = '' }: { src?: string; size?: number; alt?: string }) => {
-    const [errored, setErrored] = useState<boolean>(false);
-    const hasSrc = !!src && src.trim() !== '';
-    const style: React.CSSProperties = { width: size, height: size, borderRadius: 4 };
-    if (!hasSrc || errored) {
-      return (
-        <Box style={{ ...style, background: '#f3f4f6', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <IconReceipt2 size={Math.max(14, Math.floor(size * 0.6))} color="#9aa0a6" />
-        </Box>
-      );
-    }
-    return (
-      <img
-        src={src}
-        alt={alt}
-        style={style}
-        onError={() => setErrored(true)}
-      />
-    );
-  };
-
   // Add-on helpers: get products by category with optional manufacturer scoping
   const getAddOnProductsByCategory = useCallback((
     category: string,
@@ -1423,8 +1376,7 @@ export default function UniversalCalculator() {
       targetPricePerSqFt: targetPpsf,
     });
   }, [selectedManufacturer, selectedSystemGroup, selectedSystem, totalSqft, dimensions, selectedSurfaceHardness, pricingMethod, profitMargin, laborRate, totalLaborHours, targetPpsf, resultQtyOverrides, selectedTier, hasCalculated, effectiveSqft]);
-  // Suggestions panel UI state and local favorites (scoped to Universal Calculator)
-  const [sugOpen, setSugOpen] = useState<boolean>(true);
+  // Suggestions panel favorites (scoped to Universal Calculator)
   const [favSkus, setFavSkus] = useLocalStorage<string[]>('uc.favorites', []);
   const toggleFav = useCallback((sku: string) => {
     const exists = favSkus.includes(sku);
@@ -1610,35 +1562,6 @@ export default function UniversalCalculator() {
     const next = { ...customMaterialPrices } as Record<string, number>;
     countertopMaterialsResolved.filter(it => it.editable).forEach(item => { delete next[item.id]; });
     setCustomMaterialPrices(next);
-  };
-
-  // Thumbnail/icon for labor add-ons (uses Tabler icons as lightweight thumbnails)
-  const LaborThumb = ({ id }: { id: string }) => {
-    // Reuse a small set of icons to represent tasks
-    const style: React.CSSProperties = {
-      width: 28,
-      height: 28,
-      borderRadius: 4,
-      background: '#f3f4f6',
-      border: '1px solid #e5e7eb',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    };
-    // Pick icon by category hint in id
-    const lower = id.toLowerCase();
-    let IconComp: any = IconReceipt2;
-    if (lower.includes('hour') || lower.includes('overtime') || lower.includes('after-hours')) IconComp = IconClockHour3;
-    else if (lower.includes('remote') || lower.includes('delivery') || lower.includes('fuel')) IconComp = IconRoad;
-    else if (lower.includes('joint') || lower.includes('crack') || lower.includes('cut')) IconComp = IconRulerMeasure;
-    else if (lower.includes('grind') || lower.includes('removal') || lower.includes('demo')) IconComp = IconReceipt2;
-    else if (lower.includes('custom') || lower.includes('sundries') || lower.includes('fee')) IconComp = IconSparkles;
-
-    return (
-      <Box style={style}>
-        <IconComp size={16} color="#555" />
-      </Box>
-    );
   };
 
   // Compute add-on material and labor items and totals using shared helpers
@@ -2934,81 +2857,17 @@ export default function UniversalCalculator() {
           />
 
           {/* Step 2: Select System */}
-          <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-            <Paper p="lg" withBorder style={{ height: '100%', borderColor: '#16a34a', borderWidth: '2px' }}>
-              <Stack gap="md" h="100%">
-                <Title order={4} c="green">Step 2: Select System Type</Title>
-                <Text c="dimmed" size="sm">Choose the group and specific system</Text>
-
-                <Stack gap="sm">
-                  <div>
-                    <Text size="sm" fw={500} mb="xs">System Group</Text>
-                    <Select
-                      key={`system-group-${selectedManufacturer}-${selectedSystemGroup || 'none'}`}
-                      placeholder="Select system group..."
-                      value={selectedSystemGroup}
-                      onChange={(value) => {
-                        // Only update if value is different from current selection
-                        if (value && value !== selectedSystemGroup) {
-                          setSelectedSystemGroup(value);
-                          setSelectedSystem(''); // Reset system when group changes
-                          resetSystemComponentSelections();
-                        }
-                      }}
-                      data={[
-                        { value: 'resin-flooring', label: 'Resin Flooring' },
-                        { value: 'polishing', label: 'Concrete Polishing' },
-                        { value: 'countertops-custom', label: 'Countertops/Custom Pieces' }
-                      ]}
-                      disabled={!selectedManufacturer}
-                      size="sm"
-                      allowDeselect={false}
-                    />
-                  </div>
-
-                  <div>
-                    <Text size="sm" fw={500} mb="xs">Specific System</Text>
-                    <Select
-                      key={`system-select-${selectedSystemGroup}`}
-                      placeholder="Select system..."
-                      value={selectedSystem}
-                      onChange={(value) => {
-                        // Only update if value is different from current selection
-                        if (value && value !== selectedSystem) {
-                          setSelectedSystem(value);
-                          // Reset system-specific components when system changes
-                          resetSystemComponentSelections();
-                        }
-                      }}
-                      data={availableSystems}
-                      disabled={!selectedSystemGroup}
-                      size="sm"
-                      allowDeselect={false}
-                    />
-                  </div>
-                </Stack>
-
-                <Box mt="auto">
-                  {selectedSystem && (
-                    <Box p="md" bg="green.0" style={{ borderRadius: '8px' }}>
-                      <Text fw={500} size="sm" c="green">
-                        {availableManufacturers.find(m => m.id === selectedManufacturer)?.name} {
-                          products.find(p => p.id.toString() === selectedSystem)?.name ||
-                          availableSystems.find(s => s.value === selectedSystem)?.label ||
-                          selectedSystem.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())
-                        }
-                      </Text>
-                      <Text size="xs" c="green.7">
-                        {selectedSystemGroup === 'resin-flooring' && 'Resin-based floor coating system'}
-                        {selectedSystemGroup === 'polishing' && 'Concrete polishing system'}
-                        {selectedSystemGroup === 'countertops-custom' && 'Custom countertop piece solution'}
-                      </Text>
-                    </Box>
-                  )}
-                </Box>
-              </Stack>
-            </Paper>
-          </Grid.Col>
+          <SystemStepCol
+            selectedManufacturer={selectedManufacturer}
+            selectedSystemGroup={selectedSystemGroup}
+            setSelectedSystemGroup={setSelectedSystemGroup}
+            selectedSystem={selectedSystem}
+            setSelectedSystem={setSelectedSystem}
+            availableSystems={availableSystems}
+            availableManufacturers={availableManufacturers}
+            products={products}
+            resetSystemComponentSelections={resetSystemComponentSelections}
+          />
 
           {/* Step 3: Area & Surface Details */}
           <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
