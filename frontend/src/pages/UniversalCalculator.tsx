@@ -3,23 +3,15 @@ import {
   Container,
   Title,
   Paper,
-  Group,
   Button,
   Stack,
   Text,
   Select,
   Box,
   Grid,
-  NumberInput,
-  Accordion,
-  Badge,
-  TextInput,
-  Switch,
-  SimpleGrid,
 } from '@mantine/core';
 import { useQueries } from '@tanstack/react-query';
 import {
-  IconCalculator,
   IconClockHour3,
   IconRoad,
   IconRulerMeasure,
@@ -57,7 +49,16 @@ import NewEstimateModal, { type EstimateService } from '../components/NewEstimat
 import { useMyManufacturers } from '../hooks/useManufacturers';
 import { getImageUrl } from '../utils/imageUrl';
 import { getPreselectedClient, clearPreselectedClient } from '../utils/clientPreselection';
-import { applyManufacturerDiscount, getBasePigmentRatio, allocateByWeights } from '../utils/universalCalculator';
+import {
+  applyManufacturerDiscount,
+  getBasePigmentRatio,
+  allocateByWeights,
+  buildMaterialAddOnItems,
+  buildLaborAddOnItems,
+  buildDisplayLineItems,
+  computeSystemComponentsSummary,
+} from '../utils/universalCalculator';
+import type { LineItem } from '../utils/pnl';
 import { useUniversalCalculatorState } from '../hooks/useUniversalCalculatorState';
 
 interface Product {
@@ -1640,78 +1641,46 @@ export default function UniversalCalculator() {
     );
   };
 
-  // Compute add-on material items and totals
-  type LineItem = { id: string; name: string; qty: number; unit?: string; unitPrice: number; total: number };
-  const materialAddOnItems = useMemo(() => {
-    const lists = [
+  // Compute add-on material and labor items and totals using shared helpers
+  const materialAddOnItems = useMemo(
+    () =>
+      buildMaterialAddOnItems({
+        crackJointFillers,
+        nonSkidAdditives,
+        commonlyUsedMaterials,
+        micaFusionSprayColors,
+        countertopIncidentals,
+        countertopMaterialsResolved,
+        addOnQuantities,
+        customMaterialPrices,
+        products: products as any,
+        getUnitPrice: getUnitPrice as any,
+      }),
+    [
       crackJointFillers,
       nonSkidAdditives,
       commonlyUsedMaterials,
       micaFusionSprayColors,
       countertopIncidentals,
       countertopMaterialsResolved,
-    ];
-    const items: LineItem[] = [];
-    const includedIds = new Set<string>();
-    lists.forEach(list => {
-      list.forEach(p => {
-        const qty = addOnQuantities[p.id] || 0;
-        if (qty > 0) {
-          // Only allow overrides for editable custom items
-          const unitPrice = (("editable" in p) && (p as any).editable)
-            ? (customMaterialPrices[p.id] ?? p.price)
-            : p.price;
-          // Heuristic unit label for display
-          const nameLC = (p.name || '').toLowerCase();
-          let unit: string | undefined;
-          if (nameLC.includes('sheet')) unit = 'sheets';
-          else if (nameLC.includes('board')) unit = 'boards';
-          else if (nameLC.includes('box')) unit = 'boxes';
-          else if (nameLC.includes('piece')) unit = 'pieces';
-          items.push({ id: p.id, name: p.name, qty, unit, unitPrice, total: unitPrice * qty });
-          includedIds.add(p.id);
-        }
-      });
-    });
-    // Include any catalog-selected products (by addOnQuantities) that aren't in the above lists
-    products.forEach(prod => {
-      const id = prod.id.toString();
-      const qty = addOnQuantities[id] || 0;
-      if (qty > 0 && !includedIds.has(id)) {
-        const unitPrice = getUnitPrice(prod);
-        items.push({ id, name: prod.name, qty, unit: prod.unit || undefined, unitPrice, total: unitPrice * qty });
-      }
-    });
-    return items;
-  }, [addOnQuantities, crackJointFillers, nonSkidAdditives, commonlyUsedMaterials, micaFusionSprayColors, countertopIncidentals, countertopMaterialsResolved, customMaterialPrices]);
+      addOnQuantities,
+      customMaterialPrices,
+      products,
+      getUnitPrice,
+    ],
+  );
 
-  // Compute labor add-on items and totals (excluding sundries which apply to materials)
-  const laborAddOnItems = useMemo(() => {
-    const items: LineItem[] = [];
-    (effectiveLaborAddOns).forEach(def => {
-      // percent-based handled within materials as sundries
-      if (def.id === 'sundries') return;
-      if (def.id === 'custom-charge') {
-        const amount = addOnQuantities['custom-charge-amount'] || 0;
-        if (amount > 0) {
-          items.push({ id: def.id, name: customChargeLabel, qty: 1, unitPrice: amount, total: amount });
-        }
-      } else {
-        const qty = addOnQuantities[def.id] || 0;
-        if (qty > 0) {
-          const name = def.label;
-          const unitPrice = (laborRates[def.id] ?? def.rate);
-          items.push({ id: def.id, name, qty, unitPrice, total: unitPrice * qty });
-        }
-      }
-    });
-    // Special case: Stem Walls extra labor hours (optional)
-    const extraStemHours = addOnQuantities['stem-walls-hours'] || 0;
-    if (extraStemHours > 0) {
-      items.push({ id: 'stem-walls-hours', name: 'Stem Walls - Extra Labor Hours', qty: extraStemHours, unitPrice: laborRate, total: extraStemHours * laborRate });
-    }
-    return items;
-  }, [addOnQuantities, effectiveLaborAddOns, customChargeLabel, laborRate, laborRates]);
+  const laborAddOnItems = useMemo(
+    () =>
+      buildLaborAddOnItems({
+        effectiveLaborAddOns,
+        addOnQuantities,
+        customChargeLabel,
+        laborRate,
+        laborRates,
+      }),
+    [effectiveLaborAddOns, addOnQuantities, customChargeLabel, laborRate, laborRates],
+  );
 
   // Build line items list for system materials
   const getProduct = (id: string | null | undefined) =>
@@ -1900,43 +1869,24 @@ export default function UniversalCalculator() {
     countertopClearCoatSpreadRate,
   ]);
 
-  // Combined display items (system materials + material add-ons + labor add-ons + sundries row if applicable)
-  const displayLineItems: LineItem[] = useMemo(() => {
-    const items: LineItem[] = [];
-    items.push(...systemMaterialItems);
-    items.push(...materialAddOnItems);
-    // Sundries percent as its own row if enabled and > 0
-    const sundriesPercent = addOnQuantities['sundries'] ?? 5; // default 5%
-    const baseMaterialsSubtotal = [...systemMaterialItems, ...materialAddOnItems].reduce((acc, it) => acc + it.total, 0);
-    // Manual delta to materials subtotal before sundries
-    const manualDelta = (() => {
-      const baseMap: Record<string, { qty: number; unitPrice: number }> = {};
-      [...systemMaterialItems, ...materialAddOnItems].forEach(it => {
-        baseMap[it.id] = { qty: it.qty, unitPrice: it.unitPrice };
-      });
-      let delta = 0;
-      Object.entries(resultQtyOverrides).forEach(([id, overrideQty]) => {
-        const base = baseMap[id];
-        if (!base || !Number.isFinite(overrideQty)) return;
-        delta += (overrideQty - base.qty) * base.unitPrice;
-      });
-      return delta;
-    })();
-    const adjustedMaterialsSubtotal = baseMaterialsSubtotal + manualDelta;
-    if (sundriesEnabled && sundriesPercent > 0 && adjustedMaterialsSubtotal > 0) {
-      const sundriesAmount = (sundriesPercent / 100) * adjustedMaterialsSubtotal;
-      items.push({ id: 'sundries', name: `Sundries (${sundriesPercent}% of materials)`, qty: 1, unitPrice: sundriesAmount, total: sundriesAmount });
-    }
-    // Note: Do NOT include labor add-on items in this materials table; labor is shown separately
-    return items;
-  }, [systemMaterialItems, materialAddOnItems, addOnQuantities, sundriesEnabled, resultQtyOverrides]);
+  // Combined display items (system materials + material add-ons + sundries row if applicable)
+  const displayLineItems = useMemo(
+    () =>
+      buildDisplayLineItems({
+        systemMaterialItems,
+        materialAddOnItems,
+        addOnQuantities,
+        sundriesEnabled,
+        resultQtyOverrides,
+      }),
+    [systemMaterialItems, materialAddOnItems, addOnQuantities, sundriesEnabled, resultQtyOverrides],
+  );
 
   // System components summary (selected count and subtotal)
-  const systemComponentsSummary = useMemo(() => {
-    const count = systemMaterialItems.length;
-    const subtotal = systemMaterialItems.reduce((acc, it) => acc + it.total, 0);
-    return { count, subtotal };
-  }, [systemMaterialItems]);
+  const systemComponentsSummary = useMemo(
+    () => computeSystemComponentsSummary(systemMaterialItems),
+    [systemMaterialItems],
+  );
 
   // (moved) buildAffectedAggregatedItemsForTier is defined above to avoid TDZ issues
 

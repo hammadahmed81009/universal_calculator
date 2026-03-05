@@ -1,14 +1,6 @@
 import { Paper, Group, Text, Table, Stack, Badge } from '@mantine/core';
 import React from 'react';
-
-type LineItem = {
-  id: string;
-  name: string;
-  qty: number;
-  unit?: string;
-  unitPrice: number;
-  total: number;
-};
+import type { LineItem } from '../../utils/pnl';
 
 export type SystemComponentsSummary = {
   count: number;

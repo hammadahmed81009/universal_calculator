@@ -27,3 +27,6 @@ backend/calculator.db
 
 # Logs
 *.log
+
+node_modules/
+*.md
