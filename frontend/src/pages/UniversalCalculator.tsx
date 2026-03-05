@@ -38,6 +38,7 @@ import { AreaAndSurfaceStep } from './universal-calculator/steps/AreaAndSurfaceS
 import { PricingControlsSection } from './universal-calculator/steps/PricingControlsSection';
 import { ResetCalculatorModal } from '../components/universal-calculator/ResetCalculatorModal';
 import { ProductCatalogModal } from '../components/universal-calculator/ProductCatalogModal';
+import { SummaryBar } from '../components/universal-calculator/SummaryBar';
 import { AddOnOptionsSection } from './universal-calculator/AddOnOptionsSection';
 import './UniversalCalculator.compact.css';
 import useLocalStorage from '../hooks/useLocalStorage';
@@ -2988,23 +2989,15 @@ export default function UniversalCalculator() {
         />
 
         {/* Sticky Mode Bar + Summary (mode indicated, toggled by header tabs below) */}
-        <Box className="sticky-modebar" p="sm" mb="sm" bg="white" style={{ position: 'sticky', top: 0, zIndex: 6, borderBottom: '1px solid #e5e7eb' }}>
-          <Group justify="space-between" align="center">
-            <Group>
-              <Text size="sm" c="dimmed">Mode: {uiMode === 'addons' ? 'Add-On Options' : 'Calculation Results'}</Text>
-            </Group>
-            <Group></Group>
-          </Group>
-
-          {/* Summary strip */}
-          <Group gap="lg" mt="xs" wrap="wrap" className={uiMode === 'results' ? 'summary-condensed' : 'summary-expanded'}>
-            <Group gap={6}><Text size="sm" c="dimmed">Materials</Text><Text fw={600}>${getMaterialCost().toFixed(2)}</Text></Group>
-            <Group gap={6}><Text size="sm" c="dimmed">Labor</Text><Text fw={600}>${calculateLaborCost().toFixed(2)}</Text></Group>
-            <Group gap={6}><Text size="sm" c="dimmed">Total</Text><Text fw={600}>${calculateTotalCost().toFixed(2)}</Text></Group>
-            <Group gap={6}><Text size="sm" c="dimmed">$/sq ft</Text><Text fw={600}>{effectiveSqft > 0 ? `$${calculatePricePerSqft().toFixed(2)}` : '—'}</Text></Group>
-            <Group gap={6}><Text size="sm" c="dimmed">Margin</Text><Text fw={600}>{calculateAchievedMargin().toFixed(1)}%</Text></Group>
-          </Group>
-        </Box>
+        <SummaryBar
+          uiMode={uiMode}
+          effectiveSqft={effectiveSqft}
+          getMaterialCost={getMaterialCost}
+          calculateLaborCost={calculateLaborCost}
+          calculateTotalCost={calculateTotalCost}
+          calculatePricePerSqft={calculatePricePerSqft}
+          calculateAchievedMargin={calculateAchievedMargin}
+        />
 
         {/* Removed dev-only products loaded banner for production UI */}
 
