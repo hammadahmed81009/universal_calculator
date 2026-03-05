@@ -56,6 +56,7 @@ import NewEstimateModal, { type EstimateService } from '../components/NewEstimat
 import { useMyManufacturers } from '../hooks/useManufacturers';
 import { getImageUrl } from '../utils/imageUrl';
 import { getPreselectedClient, clearPreselectedClient } from '../utils/clientPreselection';
+import { applyManufacturerDiscount, getBasePigmentRatio, allocateByWeights } from '../utils/universalCalculator';
 
 interface Product {
   id: number;
@@ -848,12 +849,7 @@ export default function UniversalCalculator() {
   // Get unit price with manufacturer discount applied (if active)
   const getUnitPrice = useCallback((product: Product): number => {
     const raw = parseFloat(product.unit_price || '0') || 0;
-    const key = String(product.manufacturer || '').toLowerCase().trim();
-    const rule = manufacturerDiscountsMap[key];
-    if (rule && rule.active && rule.pct > 0) {
-      return Math.max(0, raw * (1 - rule.pct / 100));
-    }
-    return raw;
+    return applyManufacturerDiscount(raw, product.manufacturer || '', manufacturerDiscountsMap);
   }, [manufacturerDiscountsMap]);
 
   // Prefill Metallic Top Coat spread rate from selected product when available
@@ -1092,11 +1088,6 @@ export default function UniversalCalculator() {
     const single = s.match(/(\d+(?:\.\d+)?)/);
     if (single) return { value: parseFloat(single[1]), isRange: false };
     return undefined;
-  };
-
-  // Helper function to determine if manufacturer uses 2 pigments per kit (US Resin Supply)
-  const getBasePigmentRatio = (manufacturerName: string): number => {
-    return manufacturerName.toLowerCase().includes('us resin supply') ? 2 : 1;
   };
 
   // Calculate quantity needed for each component based on spread rates
@@ -2683,32 +2674,6 @@ export default function UniversalCalculator() {
     productId?: string; // when tied to a product (for [+ Add])
     onApply?: () => void; // optional custom handler (e.g., Metallic Color Assistant)
     tds?: string; // optional technical data sheet link
-  };
-
-  // Helper: allocate integer quantities by weights ensuring sum=total and no zeros
-  const allocateByWeights = (total: number, weights: number[], count: number) => {
-    if (count <= 0) return [] as number[];
-    const ws = weights.slice(0, count);
-    const sumW = ws.reduce((a, b) => a + (b || 0), 0) || count;
-    // Ensure at least 1 per slot
-    const base = new Array(count).fill(1);
-    let remaining = Math.max(0, Math.floor(total) - count);
-    if (remaining === 0) return base;
-    // Largest remainder method
-    const provisional = ws.map(w => (remaining * (w || 1)) / sumW);
-    const floors = provisional.map(x => Math.floor(x));
-    let used = floors.reduce((a, b) => a + b, 0);
-    const fracs = provisional.map((x, i) => ({ i, frac: x - Math.floor(x) }));
-    // Apply floors
-    for (let i = 0; i < count; i++) base[i] += floors[i];
-    // Distribute leftovers by largest fractional parts
-    let leftover = remaining - used;
-    fracs.sort((a, b) => b.frac - a.frac);
-    for (let k = 0; k < count && leftover > 0; k++) {
-      base[fracs[k].i] += 1;
-      leftover--;
-    }
-    return base;
   };
 
   // Reusable Metallic Mix Assistant applier
