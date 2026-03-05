@@ -1,9 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Container, Button, Grid } from '@mantine/core';
-import { useQueries } from '@tanstack/react-query';
 import { useQuickPresets } from '../hooks/useQuickPresets';
 import { notifications } from '@mantine/notifications';
-import { apiGet, apiPost, apiPut } from '../lib/api';
+import { apiPost, apiPut } from '../lib/api';
 import AppLayout from '../components/AppLayout';
 import PageHeader from '../components/PageHeader';
 import { PostCalculationDetails } from './universal-calculator/PostCalculationDetails';
@@ -25,11 +24,13 @@ import { useLocation } from 'wouter';
 import { useCalculatorDraft, calculatorDraftActions } from '../store/calculatorDraft';
 import { sessionActions } from '../store/sessionContext';
 import { buildSavedBidPayload, snapshotToItems } from '../utils/mapper';
-import { toUIPricingMethod, toDraftPricingMethod, toBackendPricingMethod } from '../constants/pricingMethods';
+import { toDraftPricingMethod, toBackendPricingMethod } from '../constants/pricingMethods';
 import { flooringLaborAddOns as laborAddOns, countertopLaborAddOns } from '../lib/laborCatalog';
 import type { LaborAddOn } from '../lib/laborCatalog';
 import NewEstimateModal, { type EstimateService } from '../components/NewEstimateModal';
 import { useMyManufacturers } from '../hooks/useManufacturers';
+import { useUniversalProducts } from '../hooks/useUniversalProducts';
+import { useSavedBidLoader } from '../hooks/useSavedBidLoader';
 import { getImageUrl } from '../utils/imageUrl';
 import { getPreselectedClient, clearPreselectedClient } from '../utils/clientPreselection';
 import {
@@ -359,413 +360,13 @@ export default function UniversalCalculator() {
     return mfg?.id;
   }, [apiManufacturers, selectedManufacturer]);
 
-  // Define category groups needed for various systems
-  const categoryGroups = useMemo(() => [
-    ['Epoxy', 'Polyurea', 'Polyaspartic', 'Primers', 'Primer'],
-    ['Flake Colors', 'Flake Color'],
-    ['Polyaspartic Top Coats', 'Metallic Top Coats', 'Polyaspartic Topcoats', 'Polyaspartic Top Coat', 'Metallic Top Coat', 'Top Coat', 'Topcoat'],
-    ['Base Pigments', 'Pigments', 'Pigment'],
-    ['MVB'],
-    ['Metallic Money Coat'],
-    ['Metallic Pigments', 'Metallic Pigment', 'Metallic Colors', 'Metallic', 'Colors'],
-    ['Cleaners/Neutralizers', 'Cleaners', 'Neutralizers'],
-    ['Crack & Joint Filler', 'Crack & Joint Fillers'],
-    ['Sealers & Guards', 'Guards/Finishes', 'Sealers', 'Guards', 'Sealer', 'Guard'],
-    ['Diamond-impregnated Burnishing Pads', 'Burnishing Pads', 'Burnishing'],
-    ['Slurry/Grout', 'Grout', 'Slurry'],
-    ['Densifiers', 'Densifier'],
-    ['Concrete Dyes', 'Dyes', 'Dye'],
-    ['Guards/Finishes (Premium)', 'Premium Guards', 'Premium Micro-Guard', 'Premium Microguard'],
-    ['Metallic Art Coats'],
-    ['Flood Coats'],
-    ['Non-Skid Additives', 'Non-Skid Additive', 'Nonskid Additives'],
-    ['Commonly Used Materials', 'Common Materials'],
-    ['Incidentals', 'Countertop Incidentals', 'Countertops Incidentals', 'Incidentals (Countertops)'],
-    ['RCM Fuzion Max Spray', 'RCM Fuzion Max', 'Mica Fusion Spray Colors', 'Fuzion Max Spray'],
-  ], []);
+  const {
+    products: rawProducts,
+    productsLoading,
+    productsError,
+  } = useUniversalProducts(selectedManufacturerIdNum, apiManufacturers);
 
-  // Fetch products for each category group scoped to the selected manufacturer
-  const categoryQueries = useQueries({
-    queries: categoryGroups.map(categories => ({
-      queryKey: ['products', 'category-group', categories, selectedManufacturerIdNum],
-      queryFn: async () => {
-        console.log(`[API] Fetching products for categories: ${categories.join(', ')} for mfg: ${selectedManufacturerIdNum}`);
-        const response = await apiGet<any>('/api/user-products/my-products', {
-          params: {
-            product_categories: categories.join(','),
-            manufacturer_id: selectedManufacturerIdNum,
-            cart: false,
-            limit: 500
-          }
-        });
-
-        let productsArray: Product[] = [];
-        if (Array.isArray(response)) {
-          productsArray = response;
-        } else if (response?.products && Array.isArray(response.products)) {
-          productsArray = response.products;
-        } else if (response?.data?.products && Array.isArray(response.data.products)) {
-          productsArray = response.data.products;
-        } else if (response?.data && Array.isArray(response.data)) {
-          productsArray = response.data;
-        }
-
-        // Map backend products to our local Product interface
-        return productsArray.map((p: any) => ({
-          ...p,
-          manufacturer: p.manufacturer || p.manufacturer_name || (selectedManufacturerIdNum ? apiManufacturers.find(m => m.id === selectedManufacturerIdNum)?.name : '') || '',
-          unit_price: String(p.final_price || p.unit_price || '0')
-        }));
-      },
-      enabled: !!selectedManufacturerIdNum,
-      staleTime: 5 * 60 * 1000,
-    }))
-  });
-
-  const productsLoading = categoryQueries.some(q => q.isLoading);
-  const productsError = categoryQueries.some(q => q.error);
-
-  // Consolidate all fetched products into a single "available" list for the current context
-  const products: Product[] = useMemo(() => {
-    const allProducts: Product[] = [];
-    const seenIds = new Set<number>();
-
-    categoryQueries.forEach(query => {
-      if (query.data && Array.isArray(query.data)) {
-        query.data.forEach(p => {
-          if (!seenIds.has(p.id)) {
-            seenIds.add(p.id);
-            allProducts.push(p);
-          }
-        });
-      }
-    });
-
-    console.log('[Products] Consolidated', allProducts.length, 'products from category queries');
-    return allProducts;
-  }, [categoryQueries]);
-
-  // Load saved bid when editBid parameter is present (after products and manufacturers are loaded)
-  useEffect(() => {
-    let cancelled = false;
-    async function loadSavedBid() {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const editId = params.get('editBid');
-        // Only load if there's an explicit editBid parameter in the URL
-        if (!editId) {
-          return;
-        }
-
-        setIsLoadingSavedBid(true);
-        setEditingBidId(editId);
-
-        // Wait for products to load first if we already have a manufacturer selected
-        // This ensures system components can be restored correctly
-        let retries = 0;
-        if (selectedManufacturer) {
-          while (productsLoading && retries < 20) {
-            await new Promise(resolve => setTimeout(resolve, 300));
-            retries++;
-          }
-        }
-
-        // Additional wait to ensure everything is initialized
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Fetch saved bid from API
-        const savedBid = await apiGet<any>(`/api/saved-bids/${editId}`);
-        if (cancelled || !savedBid) return;
-
-        // Restore basic information
-        if (savedBid.name) setBidName(savedBid.name);
-        if (savedBid.description) setBidDescription(savedBid.description);
-        if (savedBid.client_id) setSelectedClientId(savedBid.client_id);
-        if (savedBid.client) {
-          const clientName = `${savedBid.client.first_name || ''} ${savedBid.client.last_name || ''}`.trim();
-          if (clientName) setSelectedClientName(clientName);
-        }
-
-        // Restore manufacturer and system
-        if (savedBid.manufacturer_id || savedBid.manufacturer_name) {
-          // Map manufacturer_id or manufacturer_name to the dropdown slug
-          let manufacturerSlug = '';
-          if (savedBid.manufacturer_name) {
-            // Try to find by name first (more reliable)
-            const found = availableManufacturers.find(m =>
-              m.name.toLowerCase() === savedBid.manufacturer_name.toLowerCase()
-            );
-            if (found) {
-              manufacturerSlug = found.id;
-            }
-          }
-          // If not found by name, try to find by ID in apiManufacturers (NEW reliable way)
-          if (!manufacturerSlug && savedBid.manufacturer_id) {
-            const foundMfg = apiManufacturers.find(m => m.id === savedBid.manufacturer_id);
-            if (foundMfg) {
-              const found = availableManufacturers.find(m =>
-                m.name.toLowerCase() === foundMfg.name.toLowerCase()
-              );
-              if (found) {
-                manufacturerSlug = found.id;
-              }
-            }
-          }
-          if (manufacturerSlug) {
-            if (import.meta.env.DEV) {
-              console.log('[UniversalCalculator] Setting manufacturer:', manufacturerSlug);
-            }
-            setSelectedManufacturer(manufacturerSlug);
-          } else {
-            console.warn('[UniversalCalculator] Could not map manufacturer:', savedBid.manufacturer_id, savedBid.manufacturer_name);
-          }
-        }
-        if (savedBid.system_group) {
-          setSelectedSystemGroup(savedBid.system_group);
-        }
-        if (savedBid.system_type) {
-          setSelectedSystem(savedBid.system_type);
-        }
-
-        // Restore coverage and dimensions
-        if (savedBid.coverage_area_sqft) {
-          setTotalSqft(savedBid.coverage_area_sqft);
-        }
-        if (savedBid.dimensions) {
-          setDimensions(savedBid.dimensions);
-        }
-        if (savedBid.surface_hardness) {
-          setSelectedSurfaceHardness(savedBid.surface_hardness);
-        }
-
-        // Restore pricing configuration
-        if (savedBid.pricing_method) {
-          setPricingMethod(toUIPricingMethod(savedBid.pricing_method));
-        }
-        if (savedBid.margin_pct !== null && savedBid.margin_pct !== undefined) {
-          setProfitMargin(savedBid.margin_pct); // Already in percentage form
-        }
-        if (savedBid.labor_rate_per_hour) {
-          setLaborRate(Number(savedBid.labor_rate_per_hour));
-        }
-        if (savedBid.labor_hours) {
-          setTotalLaborHours(Number(savedBid.labor_hours));
-        }
-        if (savedBid.target_price_per_sqft) {
-          setTargetPpsf(Number(savedBid.target_price_per_sqft));
-        }
-
-        // Restore tier selection
-        if (savedBid.selected_tier) {
-          setSelectedTier(savedBid.selected_tier as 'good' | 'better' | 'best');
-        }
-        if (savedBid.tier_overrides) {
-          // tier_overrides will be used in calculations
-        }
-        if (savedBid.result_qty_overrides) {
-          setResultQtyOverrides(savedBid.result_qty_overrides);
-        }
-
-        // Restore system components - delay to ensure manufacturer/system dropdowns are populated
-        if (savedBid.system_components) {
-          if (import.meta.env.DEV) {
-            console.log('[UniversalCalculator] Restoring system components:', savedBid.system_components);
-          }
-          // Wait a bit for manufacturer/system to be set and dropdowns to populate
-          setTimeout(() => {
-            if (cancelled) return;
-            const comps = savedBid.system_components;
-            if (comps && typeof comps === 'object') {
-              if (import.meta.env.DEV) {
-                console.log('[UniversalCalculator] Setting system component values...');
-              }
-              if (comps.basePigment) setSelectedBasePigment(String(comps.basePigment || ''));
-              if (comps.baseCoat) setSelectedBaseCoat(String(comps.baseCoat || ''));
-              if (comps.flakeColor) setSelectedFlakeColor(String(comps.flakeColor || ''));
-              if (comps.topCoat) setSelectedTopCoat(String(comps.topCoat || ''));
-              if (comps.mvbBasePigment) setSelectedMVBBasePigment(String(comps.mvbBasePigment || ''));
-              if (comps.mvbBaseCoat) setSelectedMVBBaseCoat(String(comps.mvbBaseCoat || ''));
-              if (comps.mvbFlakeColor) setSelectedMVBFlakeColor(String(comps.mvbFlakeColor || ''));
-              if (comps.mvbTopCoat) setSelectedMVBTopCoat(String(comps.mvbTopCoat || ''));
-              if (comps.solidBasePigment) setSelectedSolidBasePigment(String(comps.solidBasePigment || ''));
-              if (comps.solidGroutCoat) setSelectedSolidGroutCoat(String(comps.solidGroutCoat || ''));
-              if (comps.solidBaseCoat) setSelectedSolidBaseCoat(String(comps.solidBaseCoat || ''));
-              if (comps.solidExtraBaseCoat) setSelectedSolidExtraBaseCoat(String(comps.solidExtraBaseCoat || ''));
-              if (comps.solidTopCoat) setSelectedSolidTopCoat(String(comps.solidTopCoat || ''));
-              if (comps.metallicBasePigment) setSelectedMetallicBasePigment(String(comps.metallicBasePigment || ''));
-              if (comps.metallicGroutCoat) setSelectedMetallicGroutCoat(String(comps.metallicGroutCoat || ''));
-              if (comps.metallicBaseCoat) setSelectedMetallicBaseCoat(String(comps.metallicBaseCoat || ''));
-              if (comps.metallicMoneyCoat) setSelectedMetallicMoneyCoat(String(comps.metallicMoneyCoat || ''));
-              if (comps.metallicPigments && Array.isArray(comps.metallicPigments)) {
-                setSelectedMetallicPigments(comps.metallicPigments);
-              }
-              if (comps.metallicTopCoat) setSelectedMetallicTopCoat(String(comps.metallicTopCoat || ''));
-              if (comps.grindSealPrimer) setSelectedGrindSealPrimer(String(comps.grindSealPrimer || ''));
-              if (comps.grindSealGroutCoat) setSelectedGrindSealGroutCoat(String(comps.grindSealGroutCoat || ''));
-              if (comps.grindSealBaseCoat) setSelectedGrindSealBaseCoat(String(comps.grindSealBaseCoat || ''));
-              if (comps.grindSealIntermediateCoat) setSelectedGrindSealIntermediateCoat(String(comps.grindSealIntermediateCoat || ''));
-              if (comps.grindSealTopCoat) setSelectedGrindSealTopCoat(String(comps.grindSealTopCoat || ''));
-              if (comps.grindSealAdditionalTopCoat) setSelectedGrindSealAdditionalTopCoat(String(comps.grindSealAdditionalTopCoat || ''));
-              if (comps.countertopPrimer) setSelectedCountertopPrimer(String(comps.countertopPrimer || ''));
-              if (comps.countertopBasePigment) setSelectedCountertopBasePigment(String(comps.countertopBasePigment || ''));
-              if (comps.countertopMetallicArtCoat) setSelectedCountertopMetallicArtCoat(String(comps.countertopMetallicArtCoat || ''));
-              if (comps.countertopMetallicPigments && Array.isArray(comps.countertopMetallicPigments)) {
-                setSelectedCountertopMetallicPigments(comps.countertopMetallicPigments);
-              }
-              if (comps.countertopFloodCoat) setSelectedCountertopFloodCoat(String(comps.countertopFloodCoat || ''));
-              if (comps.countertopTopCoat) setSelectedCountertopTopCoat(String(comps.countertopTopCoat || ''));
-            }
-          }, 300); // Small delay to ensure dropdowns are populated
-        }
-
-        // Restore spread rate overrides
-        if (savedBid.spread_rate_overrides) {
-          const overrides = savedBid.spread_rate_overrides;
-          if (overrides.noMVBBasePigment) setNoMVBBasePigmentSpreadRate(Number(overrides.noMVBBasePigment));
-          if (overrides.noMVBBaseCoat) setNoMVBBaseCoatSpreadRate(Number(overrides.noMVBBaseCoat));
-          if (overrides.noMVBFlakeColor) setNoMVBFlakeColorSpreadRate(Number(overrides.noMVBFlakeColor));
-          if (overrides.noMVBTopCoat) setNoMVBTopCoatSpreadRate(Number(overrides.noMVBTopCoat));
-          if (overrides.mvbBasePigment) setMVBBasePigmentSpreadRate(Number(overrides.mvbBasePigment));
-          if (overrides.mvbBaseCoat) setMVBBaseCoatSpreadRate(Number(overrides.mvbBaseCoat));
-          if (overrides.mvbFlakeColor) setMVBFlakeColorSpreadRate(Number(overrides.mvbFlakeColor));
-          if (overrides.mvbTopCoat) setMVBTopCoatSpreadRate(Number(overrides.mvbTopCoat));
-          if (overrides.solidBasePigment) setSolidBasePigmentSpreadRate(Number(overrides.solidBasePigment));
-          if (overrides.solidGroutCoat) setSolidGroutCoatSpreadRate(Number(overrides.solidGroutCoat));
-          if (overrides.solidBaseCoat) setSolidBaseCoatSpreadRate(Number(overrides.solidBaseCoat));
-          if (overrides.solidExtraBaseCoat) setSolidExtraBaseCoatSpreadRate(Number(overrides.solidExtraBaseCoat));
-          if (overrides.solidTopCoat) setSolidTopCoatSpreadRate(Number(overrides.solidTopCoat));
-          if (overrides.metallicBasePigment) setMetallicBasePigmentSpreadRate(Number(overrides.metallicBasePigment));
-          if (overrides.metallicGroutCoat) setMetallicGroutCoatSpreadRate(Number(overrides.metallicGroutCoat));
-          if (overrides.metallicBaseCoat) setMetallicBaseCoatSpreadRate(Number(overrides.metallicBaseCoat));
-          if (overrides.metallicMoneyCoat) setMetallicMoneyCoatSpreadRate(Number(overrides.metallicMoneyCoat));
-          if (overrides.metallicTopCoat) setMetallicTopCoatSpreadRate(Number(overrides.metallicTopCoat));
-          if (overrides.grindSealGrout) setGrindSealGroutSpreadRate(Number(overrides.grindSealGrout));
-          if (overrides.grindSealBase) setGrindSealBaseSpreadRate(Number(overrides.grindSealBase));
-          if (overrides.grindSealIntermediateCoat) setGrindSealIntermediateCoatSpreadRate(Number(overrides.grindSealIntermediateCoat));
-          if (overrides.countertopBaseCoat) setCountertopBaseCoatSpreadRate(Number(overrides.countertopBaseCoat));
-          if (overrides.countertopMetallicArtCoat) setCountertopMetallicArtCoatSpreadRate(Number(overrides.countertopMetallicArtCoat));
-          if (overrides.countertopClearCoat) setCountertopClearCoatSpreadRate(Number(overrides.countertopClearCoat));
-          if (overrides.countertopMetallicPigment) setCountertopMetallicPigmentSpreadRate(Number(overrides.countertopMetallicPigment));
-        }
-
-        // Restore add-on quantities
-        if (savedBid.add_on_quantities) {
-          setAddOnQuantities(savedBid.add_on_quantities);
-        }
-
-        // Restore custom material prices
-        if (savedBid.custom_material_prices) {
-          setCustomMaterialPrices(savedBid.custom_material_prices);
-        }
-
-        // Restore labor rates
-        if (savedBid.labor_rates) {
-          setLaborRates(savedBid.labor_rates);
-        }
-
-        // Restore sundries
-        if (savedBid.sundries_enabled !== null && savedBid.sundries_enabled !== undefined) {
-          setSundriesEnabled(savedBid.sundries_enabled);
-        }
-
-        // Restore custom charge label
-        if (savedBid.custom_charge_label) {
-          setCustomChargeLabel(savedBid.custom_charge_label);
-        }
-
-        // Restore countertop configuration
-        if (savedBid.countertop_pieces && Array.isArray(savedBid.countertop_pieces)) {
-          setCountertopPieces(savedBid.countertop_pieces);
-        }
-        if (savedBid.countertop_mode) {
-          setCountertopMode(savedBid.countertop_mode);
-        }
-        if (savedBid.countertop_direct_surface) {
-          setCountertopDirectSurface(Number(savedBid.countertop_direct_surface));
-        }
-        if (savedBid.countertop_direct_edge) {
-          setCountertopDirectEdge(Number(savedBid.countertop_direct_edge));
-        }
-        if (savedBid.countertop_direct_backsplash) {
-          setCountertopDirectBacksplash(Number(savedBid.countertop_direct_backsplash));
-        }
-
-        // Restore suggestion cycle
-        if (savedBid.suggestion_cycle) {
-          setSuggestionCycle(savedBid.suggestion_cycle);
-        }
-
-        // Restore UI state if available (for any additional state not covered above)
-        if (savedBid.ui_state) {
-          try {
-            calculatorDraftActions.setUiState(savedBid.ui_state);
-          } catch (e) {
-            console.warn('[UniversalCalculator] Failed to restore UI state:', e);
-          }
-        }
-
-        // Restore items to draft if available
-        if (savedBid.items && Array.isArray(savedBid.items) && savedBid.items.length > 0) {
-          const restoredItems = savedBid.items.map((item: any) => ({
-            id: item.product_id?.toString() || item.id?.toString() || '',
-            name: item.item_name || item.product_name || item.name || 'Product',
-            sku: item.item_sku || item.product_id?.toString() || '',
-            qty: Number(item.quantity) || 0,
-            unit: item.unit || 'ea',
-            unitPrice: Number(item.unit_price) || 0,
-            imageUrl: item.product_image_url || null,
-            tdsUrl: item.product_tds_url || null,
-            componentKey: item.component_key || null,
-          }));
-
-          // Update draft with restored items and totals
-          calculatorDraftActions.patch({
-            items: restoredItems,
-            totals: savedBid.customer_price > 0 || savedBid.total_cost > 0 ? {
-              materialCost: Number(savedBid.material_cost || 0),
-              laborCost: Number(savedBid.labor_cost || 0),
-              totalCost: Number(savedBid.total_cost || 0),
-              customerPrice: Number(savedBid.customer_price || 0),
-              ppsf: Number(savedBid.price_per_sqft || 0),
-              byTier: savedBid.totals_by_tier || {},
-            } : undefined,
-          });
-        }
-
-        // Mark as calculated if we have totals - auto-trigger recalculation to display results
-        if (savedBid.customer_price > 0 || savedBid.total_cost > 0) {
-          setHasCalculated(true);
-          // Auto-trigger calculation after a delay to ensure all state is restored
-          setTimeout(() => {
-            if (cancelled) return;
-            if (import.meta.env.DEV) {
-              console.log('[UniversalCalculator] Auto-triggering calculation after load');
-            }
-            // Trigger calculation by calling handleCalculate
-            // We'll do this by setting a flag that triggers calculation in useEffect
-            setAutoTriggerCalc(true);
-          }, 1000); // Wait 1 second for all state to be restored
-        }
-
-        notifications.show({
-          title: 'Bid Loaded',
-          message: `Loaded "${savedBid.name}" successfully. All values have been restored.`,
-          color: 'green'
-        });
-      } catch (error: any) {
-        console.error('[UniversalCalculator] Failed to load saved bid:', error);
-        notifications.show({
-          title: 'Load Failed',
-          message: error?.message || 'Failed to load saved bid.',
-          color: 'red'
-        });
-      } finally {
-        setIsLoadingSavedBid(false);
-      }
-    }
-    loadSavedBid();
-    return () => { cancelled = true; };
-  }, [products.length, availableManufacturers, apiManufacturers]);
+  const products = rawProducts as Product[];
 
   // Debug: Log when products array changes
   useEffect(() => {
@@ -1314,6 +915,102 @@ export default function UniversalCalculator() {
   // Per-system rotating suggestion index
   const [suggestionCycle, setSuggestionCycle] = useLocalStorage<Record<string, number>>('calculator.suggestionCycle', {});
   const suggestionKey = `${selectedSystemGroup || 'none'}:${selectedSystem || 'none'}`;
+
+  useSavedBidLoader({
+    productsLength: products.length,
+    productsLoading,
+    availableManufacturers,
+    apiManufacturers,
+    selectedManufacturer,
+    setSelectedManufacturer,
+    setSelectedSystemGroup,
+    setSelectedSystem,
+    setTotalSqft,
+    setDimensions,
+    setSelectedSurfaceHardness,
+    setPricingMethod,
+    setProfitMargin,
+    setLaborRate,
+    setTotalLaborHours,
+    setTargetPpsf,
+    setSelectedTier,
+    setResultQtyOverrides,
+    setHasCalculated,
+    setBidName,
+    setBidDescription,
+    setSelectedClientId,
+    setSelectedClientName,
+    setSelectedBasePigment,
+    setSelectedBaseCoat,
+    setSelectedFlakeColor,
+    setSelectedTopCoat,
+    setSelectedMVBBasePigment,
+    setSelectedMVBBaseCoat,
+    setSelectedMVBFlakeColor,
+    setSelectedMVBTopCoat,
+    setSelectedSolidBasePigment,
+    setSelectedSolidGroutCoat,
+    setSelectedSolidBaseCoat,
+    setSelectedSolidExtraBaseCoat,
+    setSelectedSolidTopCoat,
+    setSelectedMetallicBasePigment,
+    setSelectedMetallicGroutCoat,
+    setSelectedMetallicBaseCoat,
+    setSelectedMetallicMoneyCoat,
+    setSelectedMetallicPigments,
+    setSelectedMetallicTopCoat,
+    setSelectedGrindSealPrimer,
+    setSelectedGrindSealGroutCoat,
+    setSelectedGrindSealBaseCoat,
+    setSelectedGrindSealIntermediateCoat,
+    setSelectedGrindSealTopCoat,
+    setSelectedGrindSealAdditionalTopCoat,
+    setSelectedCountertopPrimer,
+    setSelectedCountertopBasePigment,
+    setSelectedCountertopMetallicArtCoat,
+    setSelectedCountertopMetallicPigments,
+    setSelectedCountertopFloodCoat,
+    setSelectedCountertopTopCoat,
+    setNoMVBBasePigmentSpreadRate,
+    setNoMVBBaseCoatSpreadRate,
+    setNoMVBFlakeColorSpreadRate,
+    setNoMVBTopCoatSpreadRate,
+    setMVBBasePigmentSpreadRate,
+    setMVBBaseCoatSpreadRate,
+    setMVBFlakeColorSpreadRate,
+    setMVBTopCoatSpreadRate,
+    setSolidBasePigmentSpreadRate,
+    setSolidGroutCoatSpreadRate,
+    setSolidBaseCoatSpreadRate,
+    setSolidExtraBaseCoatSpreadRate,
+    setSolidTopCoatSpreadRate,
+    setMetallicBasePigmentSpreadRate,
+    setMetallicGroutCoatSpreadRate,
+    setMetallicBaseCoatSpreadRate,
+    setMetallicMoneyCoatSpreadRate,
+    setMetallicTopCoatSpreadRate,
+    setGrindSealGroutSpreadRate,
+    setGrindSealBaseSpreadRate,
+    setGrindSealIntermediateCoatSpreadRate,
+    setCountertopBaseCoatSpreadRate,
+    setCountertopMetallicArtCoatSpreadRate,
+    setCountertopClearCoatSpreadRate,
+    setCountertopMetallicPigmentSpreadRate,
+    setAddOnQuantities,
+    setCustomMaterialPrices,
+    setLaborRates,
+    setSundriesEnabled,
+    setCustomChargeLabel,
+    setCountertopPieces,
+    setCountertopMode,
+    setCountertopDirectSurface,
+    setCountertopDirectEdge,
+    setCountertopDirectBacksplash,
+    setSuggestionCycle,
+    setIsLoadingSavedBid,
+    setEditingBidId,
+    setAutoTriggerCalc,
+  });
 
   // Hydrate from persisted draft UI state on mount (only if not loading saved bid)
   useEffect(() => {
